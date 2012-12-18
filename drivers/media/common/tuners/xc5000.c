@@ -643,7 +643,7 @@ static void xc_debug_dump(struct xc5000_priv *priv)
 {
 	u16 adc_envelope;
 	u32 freq_error_hz = 0;
-	u16 lock_status;
+	u16 lock_status = 0;
 	u32 hsync_freq_hz = 0;
 	u16 frame_lines = 0;
 	u16 quality = 0;
