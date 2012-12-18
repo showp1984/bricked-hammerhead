@@ -680,7 +680,7 @@ DEFINE_SIMPLE_ATTRIBUTE(reg_fops, get_reg, set_reg, "0x%02llx\n");
 
 static int get_calc(void *data, u64 * val)
 {
-	int ibat, rc;
+	int ibat = 0, rc;
 
 	rc = pm8xxx_ccadc_get_battery_current(&ibat);
 	*val = ibat;
