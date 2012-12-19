@@ -152,9 +152,6 @@ static int mp_decision(void)
 
 	rq_depth = get_rq_info();
 	nr_cpu_online = num_online_cpus();
-#if DEBUG
-        pr_info(MPDEC_TAG"[DEBUG]: RQ: %u, cpus_on: %i", rq_depth, nr_cpu_online);
-#endif
 
 	if (nr_cpu_online) {
 		index = (nr_cpu_online - 1) * 2;
@@ -184,7 +181,8 @@ static int mp_decision(void)
 
 	last_time = ktime_to_ms(ktime_get());
 #if DEBUG
-        pr_info(MPDEC_TAG"[DEBUG] New State: %i", new_state);
+        pr_info(MPDEC_TAG"[DEBUG] rq: %u, new_state: %i | Mask=[%d%d%d%d]\n",
+                rq_depth, new_state, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
 #endif
 	return new_state;
 }
