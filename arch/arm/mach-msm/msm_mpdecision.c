@@ -59,7 +59,7 @@ static DEFINE_PER_CPU(struct msm_mpdec_cpudata_t, msm_mpdec_cpudata);
 
 static struct delayed_work msm_mpdec_work;
 static struct workqueue_struct *msm_mpdec_workq;
-static DEFINE_MUTEX(msm_cpu_lock);
+static DEFINE_MUTEX(mpdec_msm_cpu_lock);
 
 static struct msm_mpdec_tuners {
 	unsigned int startdelay;
@@ -208,7 +208,7 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 	if (suspended == true)
 		goto out;
 
-	if (!mutex_trylock(&msm_cpu_lock))
+	if (!mutex_trylock(&mpdec_msm_cpu_lock))
 		goto out;
 
 	/* if sth messed with the cpus, update the check vars so we can proceed */
@@ -265,7 +265,7 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 		pr_err(MPDEC_TAG"%s: invalid mpdec hotplug state %d\n",
 		       __func__, state);
 	}
-	mutex_unlock(&msm_cpu_lock);
+	mutex_unlock(&mpdec_msm_cpu_lock);
 
 out:
 	if (state != MSM_MPDEC_DISABLED)
