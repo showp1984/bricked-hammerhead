@@ -80,7 +80,7 @@ static struct msm_mpdec_tuners {
         .min_cpus = 1,
 };
 
-static unsigned int NwNs_Threshold[8] = {19, 30, 19, 11, 19, 11, 0, 11};
+static unsigned int NwNs_Threshold[8] = {19, 10, 28, 30, 32, 30, 0, 35};
 static unsigned int TwTs_Threshold[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 
 extern unsigned int get_rq_info(void);
@@ -99,7 +99,7 @@ static int get_slowest_cpu(void)
         int i, cpu = 0;
         unsigned long rate, slow_rate = 0;
 
-        for (i = 0; i < CONFIG_NR_CPUS; i++) {
+        for (i = 1; i < CONFIG_NR_CPUS; i++) {
                 if (!cpu_online(i))
                         continue;
 
@@ -109,8 +109,6 @@ static int get_slowest_cpu(void)
                 }
 
                 if ((rate <= slow_rate) && (slow_rate != 0)) {
-                        if (i == 0)
-                                continue;
                         cpu = i;
                         slow_rate = rate;
                 }
@@ -119,12 +117,14 @@ static int get_slowest_cpu(void)
         return cpu;
 }
 
-static int get_slowest_cpu_rate(void)
+static unsigned long get_slowest_cpu_rate(void)
 {
         int i = 0;
         unsigned long rate, slow_rate = 0;
 
         for (i = 0; i < CONFIG_NR_CPUS; i++) {
+                if (!cpu_online(i))
+                        continue;
                 rate = get_rate(i);
                 if ((rate < slow_rate) && (slow_rate != 0)) {
                         slow_rate = rate;
@@ -257,7 +257,7 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 		}
 		break;
 	case MSM_MPDEC_UP:
-		cpu = cpumask_next_zero(0, cpu_online_mask);;
+		cpu = cpumask_next_zero(0, cpu_online_mask);
 		if (cpu < nr_cpu_ids) {
 			if ((per_cpu(msm_mpdec_cpudata, cpu).online == false) && (!cpu_online(cpu))) {
 				cpu_up(cpu);
