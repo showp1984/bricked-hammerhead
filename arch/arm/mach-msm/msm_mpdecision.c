@@ -58,6 +58,7 @@ struct msm_mpdec_cpudata_t {
 static DEFINE_PER_CPU(struct msm_mpdec_cpudata_t, msm_mpdec_cpudata);
 
 static struct delayed_work msm_mpdec_work;
+static struct workqueue_struct *msm_mpdec_workq;
 static DEFINE_MUTEX(msm_cpu_lock);
 
 static struct msm_mpdec_tuners {
@@ -268,7 +269,7 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 
 out:
 	if (state != MSM_MPDEC_DISABLED)
-		schedule_delayed_work(&msm_mpdec_work,
+		queue_delayed_work(msm_mpdec_suspended_workq, &msm_mpdec_work,
 				msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
 	return;
 }
@@ -549,7 +550,8 @@ static ssize_t store_enabled(struct kobject *a, struct attribute *b,
 	case '1':
 		state = MSM_MPDEC_IDLE;
 		was_paused = true;
-		schedule_delayed_work(&msm_mpdec_work, 0);
+		queue_delayed_work(msm_mpdec_suspended_workq, &msm_mpdec_work,
+                                   msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
 		pr_info(MPDEC_TAG"firing up mpdecision...\n");
 		break;
 	default:
@@ -598,7 +600,7 @@ static struct attribute_group msm_mpdec_attr_group = {
 };
 /**************************** SYSFS END ****************************/
 
-static int __init msm_mpdec(void)
+static int __init msm_mpdec_init(void)
 {
 	int cpu, rc, err = 0;
 
@@ -610,9 +612,14 @@ static int __init msm_mpdec(void)
 
         was_paused = true;
 
+        msm_mpdec_workq = alloc_workqueue(
+                "mpdec", WQ_UNBOUND | WQ_RESCUER | WQ_FREEZABLE, 1);
+        if (!msm_mpdec_workq)
+                return -ENOMEM;
 	INIT_DELAYED_WORK(&msm_mpdec_work, msm_mpdec_work_thread);
 	if (state != MSM_MPDEC_DISABLED)
-		schedule_delayed_work(&msm_mpdec_work, 0);
+		queue_delayed_work(msm_mpdec_suspended_workq, &msm_mpdec_work,
+                                   msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
 
 	register_early_suspend(&msm_mpdec_early_suspend_handler);
 
@@ -630,6 +637,10 @@ static int __init msm_mpdec(void)
 
 	return err;
 }
+late_initcall(msm_mpdec_init);
 
-late_initcall(msm_mpdec);
-
+void msm_mpdec_exit(void)
+{
+        destroy_workqueue(msm_mpdec_workq);
+        destroy_workqueue(msm_mpdec_suspended_workq);
+}
