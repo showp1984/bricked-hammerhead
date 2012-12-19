@@ -273,38 +273,31 @@ out:
 
 static void msm_mpdec_early_suspend(struct early_suspend *h)
 {
-	int cpu = 0;
+	int cpu = nr_cpu_ids;
 	for_each_possible_cpu(cpu) {
 		mutex_lock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
-		if (((cpu >= (CONFIG_NR_CPUS - 1)) && (num_online_cpus() > 1)) && (msm_mpdec_tuners_ins.scroff_single_core)) {
-			cpu_down(cpu);
-			pr_info(MPDEC_TAG"Screen -> off. Suspended CPU%d | Mask=[%d%d]\n",
-					cpu, cpu_online(0), cpu_online(1));
+		if ((cpu >= 1) && (cpu_online(cpu))) {
+                        cpu_down(cpu);
+                        pr_info(MPDEC_TAG"Screen -> off. Suspended CPU[%d] | Mask=[%d%d%d%d]\n",
+                                cpu, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
 			per_cpu(msm_mpdec_cpudata, cpu).online = false;
 		}
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = true;
 		mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
 	}
+        pr_info(MPDEC_TAG"Screen -> off. Deactivated mpdecision.\n");
 }
 
 static void msm_mpdec_late_resume(struct early_suspend *h)
 {
-	int cpu = 0;
+	int cpu = nr_cpu_ids;
 	for_each_possible_cpu(cpu) {
 		mutex_lock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
-		if ((cpu >= (CONFIG_NR_CPUS - 1)) && (num_online_cpus() < CONFIG_NR_CPUS)) {
-			/* Always enable cpus when screen comes online.
-			 * This boosts the wakeup process.
-			 */
-			cpu_up(cpu);
-			per_cpu(msm_mpdec_cpudata, cpu).on_time = ktime_to_ms(ktime_get());
-			per_cpu(msm_mpdec_cpudata, cpu).online = true;
-			pr_info(MPDEC_TAG"Screen -> on. Hot plugged CPU%d | Mask=[%d%d]\n",
-					cpu, cpu_online(0), cpu_online(1));
-		}
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = false;
 		mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
 	}
+        pr_info(MPDEC_TAG"Screen -> on. Activated mpdecision. | Mask=[%d%d%d%d]\n",
+		cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3))
 }
 
 static struct early_suspend msm_mpdec_early_suspend_handler = {
