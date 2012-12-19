@@ -2343,7 +2343,7 @@ static int set_multi(const struct dmi_system_id *d)
 	return 0;
 }
 
-static const __cpuinitconst struct dmi_system_id multi_dmi_table[] = {
+static const struct dmi_system_id multi_dmi_table[] = {
 	{
 		.callback = set_multi,
 		.ident = "IBM System Summit2",

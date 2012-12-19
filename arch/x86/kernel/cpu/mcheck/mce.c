@@ -1948,7 +1948,6 @@ static struct bus_type mce_subsys = {
 
 DEFINE_PER_CPU(struct device *, mce_device);
 
-__cpuinitdata
 void (*threshold_cpu_callback)(unsigned long action, unsigned int cpu);
 
 static inline struct mce_bank *attr_to_bank(struct device_attribute *attr)

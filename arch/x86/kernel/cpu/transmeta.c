@@ -98,7 +98,7 @@ static void init_transmeta(struct cpuinfo_x86 *c)
 #endif
 }
 
-static const struct cpu_dev __cpuinitconst transmeta_cpu_dev = {
+static const struct cpu_dev transmeta_cpu_dev = {
 	.c_vendor	= "Transmeta",
 	.c_ident	= { "GenuineTMx86", "TransmetaCPU" },
 	.c_early_init	= early_init_transmeta,

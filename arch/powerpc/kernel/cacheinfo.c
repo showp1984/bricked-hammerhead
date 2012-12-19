@@ -140,7 +140,7 @@ static void cache_init(struct cache *cache, int type, int level, struct device_n
 	list_add(&cache->list, &cache_list);
 }
 
-static struct cache *__cpuinit new_cache(int type, int level, struct device_node *ofnode)
+static struct cache *new_cache(int type, int level, struct device_node *ofnode)
 {
 	struct cache *cache;
 
@@ -324,7 +324,7 @@ static bool cache_node_is_unified(const struct device_node *np)
 	return of_get_property(np, "cache-unified", NULL);
 }
 
-static struct cache *__cpuinit cache_do_one_devnode_unified(struct device_node *node, int level)
+static struct cache *cache_do_one_devnode_unified(struct device_node *node, int level)
 {
 	struct cache *cache;
 
@@ -335,7 +335,7 @@ static struct cache *__cpuinit cache_do_one_devnode_unified(struct device_node *
 	return cache;
 }
 
-static struct cache *__cpuinit cache_do_one_devnode_split(struct device_node *node, int level)
+static struct cache *cache_do_one_devnode_split(struct device_node *node, int level)
 {
 	struct cache *dcache, *icache;
 
@@ -357,7 +357,7 @@ err:
 	return NULL;
 }
 
-static struct cache *__cpuinit cache_do_one_devnode(struct device_node *node, int level)
+static struct cache *cache_do_one_devnode(struct device_node *node, int level)
 {
 	struct cache *cache;
 
@@ -369,7 +369,7 @@ static struct cache *__cpuinit cache_do_one_devnode(struct device_node *node, in
 	return cache;
 }
 
-static struct cache *__cpuinit cache_lookup_or_instantiate(struct device_node *node, int level)
+static struct cache *cache_lookup_or_instantiate(struct device_node *node, int level)
 {
 	struct cache *cache;
 
@@ -423,7 +423,7 @@ static void do_subsidiary_caches(struct cache *cache)
 	}
 }
 
-static struct cache *__cpuinit cache_chain_instantiate(unsigned int cpu_id)
+static struct cache *cache_chain_instantiate(unsigned int cpu_id)
 {
 	struct device_node *cpu_node;
 	struct cache *cpu_cache = NULL;
@@ -448,7 +448,7 @@ out:
 	return cpu_cache;
 }
 
-static struct cache_dir *__cpuinit cacheinfo_create_cache_dir(unsigned int cpu_id)
+static struct cache_dir *cacheinfo_create_cache_dir(unsigned int cpu_id)
 {
 	struct cache_dir *cache_dir;
 	struct device *dev;
