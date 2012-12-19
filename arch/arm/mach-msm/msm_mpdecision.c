@@ -537,16 +537,17 @@ static ssize_t store_enabled(struct kobject *a, struct attribute *b,
 	switch (buf[0]) {
 	case '0':
 		state = MSM_MPDEC_DISABLED;
-		cpu = (CONFIG_NR_CPUS - 1);
-		if (!cpu_online(cpu)) {
-			per_cpu(msm_mpdec_cpudata, cpu).on_time = ktime_to_ms(ktime_get());
-			per_cpu(msm_mpdec_cpudata, cpu).online = true;
-			cpu_up(cpu);
-			pr_info(MPDEC_TAG"nap time... Hot plugged CPU[%d] | Mask=[%d%d]\n",
-					 cpu, cpu_online(0), cpu_online(1));
-		} else {
-			pr_info(MPDEC_TAG"nap time...\n");
-		}
+                pr_info(MPDEC_TAG"nap time... Hot plugging offline CPUs...\n");
+
+                for (cpu = 1; cpu < CONFIG_NR_CPUS; cpu++) {
+                        if (!cpu_online(cpu)) {
+                                per_cpu(msm_thermal_info_mpdec_cpudata, cpu).on_time = ktime_to_ms(ktime_get());
+                                per_cpu(msm_thermal_info_mpdec_cpudata, cpu).online = true;
+                                cpu_up(cpu);
+                                pr_info(MPDEC_TAG"nap time... Hot plugged CPU[%d] | Mask=[%d%d%d%d]\n",
+                                        cpu, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
+                        }
+                }
 		break;
 	case '1':
 		state = MSM_MPDEC_IDLE;
