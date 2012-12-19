@@ -38,7 +38,7 @@
 
 #define MPDEC_TAG                       "[MPDEC]: "
 #define MSM_MPDEC_STARTDELAY            20000
-#define MSM_MPDEC_DELAY                 100
+#define MSM_MPDEC_DELAY                 70
 #define MSM_MPDEC_PAUSE                 10000
 #define MSM_MPDEC_IDLE_FREQ             486000
 
