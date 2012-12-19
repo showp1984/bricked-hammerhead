@@ -529,7 +529,7 @@ static ssize_t store_max_cpus(struct kobject *a, struct attribute *b,
 	unsigned int input;
 	int ret;
 	ret = sscanf(buf, "%u", &input);
-	if ((ret != 1) || input > 4)
+	if ((ret != 1) || input > CONFIG_NR_CPUS)
                 return -EINVAL;
 
 	msm_mpdec_tuners_ins.max_cpus = input;
