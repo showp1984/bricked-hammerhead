@@ -293,11 +293,8 @@ static void msm_mpdec_early_suspend(struct early_suspend *h)
 static void msm_mpdec_late_resume(struct early_suspend *h)
 {
 	int cpu = nr_cpu_ids;
-	for_each_possible_cpu(cpu) {
-		mutex_lock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
+	for_each_possible_cpu(cpu)
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = false;
-		mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
-	}
         pr_info(MPDEC_TAG"Screen -> on. Activated mpdecision. | Mask=[%d%d%d%d]\n",
 		cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3))
 }
