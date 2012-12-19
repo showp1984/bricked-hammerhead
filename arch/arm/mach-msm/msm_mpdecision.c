@@ -193,6 +193,9 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 	cputime64_t on_time = 0;
         bool suspended = false;
 
+        if (ktime_to_ms(ktime_get()) <= msm_mpdec_tuners_ins.startdelay)
+                goto out;
+
         for_each_possible_cpu(cpu) {
                 if ((per_cpu(msm_mpdec_cpudata, cpu).device_suspended == true)) {
                         suspended = true;
