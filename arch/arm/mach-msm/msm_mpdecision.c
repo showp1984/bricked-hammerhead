@@ -87,12 +87,18 @@ static int get_slowest_cpu(void)
         unsigned long rate, slow_rate = 0;
 
         for (i = 0; i < CONFIG_NR_CPUS; i++) {
+                if (!cpu_online(i))
+                        continue;
+
                 rate = get_rate(i);
-                if ((rate < slow_rate) && (slow_rate != 0)) {
-                        cpu = i;
+                if (slow_rate == 0) {
                         slow_rate = rate;
                 }
-                if (slow_rate == 0) {
+
+                if ((rate <= slow_rate) && (slow_rate != 0)) {
+                        if (i == 0)
+                                continue;
+                        cpu = i;
                         slow_rate = rate;
                 }
         }
