@@ -288,6 +288,9 @@ static void msm_mpdec_early_suspend(struct early_suspend *h)
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = true;
 		mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).suspend_mutex);
 	}
+        /* main work thread can sleep now */
+        cancel_delayed_work_sync(&msm_mpdec_work);
+
         pr_info(MPDEC_TAG"Screen -> off. Deactivated mpdecision.\n");
 }
 
@@ -296,6 +299,11 @@ static void msm_mpdec_late_resume(struct early_suspend *h)
 	int cpu = nr_cpu_ids;
 	for_each_possible_cpu(cpu)
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = false;
+
+        /* wake up main work thread */
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
+                           msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
+
         pr_info(MPDEC_TAG"Screen -> on. Activated mpdecision. | Mask=[%d%d%d%d]\n",
 		cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3))
 }
