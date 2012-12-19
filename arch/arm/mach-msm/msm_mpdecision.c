@@ -610,6 +610,8 @@ static int __init msm_mpdec(void)
 		per_cpu(msm_mpdec_cpudata, cpu).online = true;
 	}
 
+        was_paused = true;
+
 	INIT_DELAYED_WORK(&msm_mpdec_work, msm_mpdec_work_thread);
 	if (state != MSM_MPDEC_DISABLED)
 		schedule_delayed_work(&msm_mpdec_work, 0);
