@@ -35,7 +35,7 @@
 #include <linux/delay.h>
 #include "acpuclock.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #define MPDEC_TAG                       "[MPDEC]: "
 #define MSM_MPDEC_STARTDELAY            20000
