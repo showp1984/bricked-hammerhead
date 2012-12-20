@@ -1275,11 +1275,15 @@ static void __init hw_init(void)
 #ifdef CONFIG_DEBUG_FS
 static int krait_variant_debugfs_show(struct seq_file *s, void *data)
 {
-	seq_printf(s, "Your krait chip variant is: \n");
-	seq_printf(s, "[%s] SLOW \n", ((krait_chip_variant == PVS_SLOW) ? "X" : " "));
-	seq_printf(s, "[%s] NOMINAL \n", ((krait_chip_variant == PVS_NOMINAL) ? "X" : " "));
-	seq_printf(s, "[%s] FAST \n", ((krait_chip_variant == PVS_FAST) ? "X" : " "));
-	seq_printf(s, "[%s] FASTER \n", ((krait_chip_variant == PVS_FASTER) ? "X" : " "));
+        if (krait_chip_variant == PVS_UNKNOWN) {
+                seq_printf(s, "Your krait chip variant is UNKNOWN!\n");
+        } else {
+                seq_printf(s, "Your krait chip variant is: \n");
+                seq_printf(s, "[%s] SLOW \n", ((krait_chip_variant == PVS_SLOW) ? "X" : " "));
+                seq_printf(s, "[%s] NOMINAL \n", ((krait_chip_variant == PVS_NOMINAL) ? "X" : " "));
+                seq_printf(s, "[%s] FAST \n", ((krait_chip_variant == PVS_FAST) ? "X" : " "));
+                seq_printf(s, "[%s] FASTER \n", ((krait_chip_variant == PVS_FASTER) ? "X" : " "));
+        }
 
 	return 0;
 }
