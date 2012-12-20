@@ -297,6 +297,9 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 
 	policy->cpuinfo.transition_latency =
 		acpuclk_get_switch_time() * NSEC_PER_USEC;
+	/* set safe default min and max speeds */
+	policy->max = CONFIG_MSM_CPU_FREQ_MAX;
+	policy->min = CONFIG_MSM_CPU_FREQ_MIN;
 
 	cpu_work = &per_cpu(cpufreq_work, policy->cpu);
 	INIT_WORK(&cpu_work->work, set_cpu_work);
