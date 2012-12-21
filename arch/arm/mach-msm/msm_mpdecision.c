@@ -85,7 +85,7 @@ static struct msm_mpdec_tuners {
         .min_cpus = 1,
 };
 
-static unsigned int NwNs_Threshold[8] = {14, 0, 28, 30, 32, 30, 0, 35};
+static unsigned int NwNs_Threshold[8] = {12, 0, 25, 20, 32, 28, 0, 35};
 static unsigned int TwTs_Threshold[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 
 extern unsigned int get_rq_info(void);
