@@ -318,8 +318,7 @@ static void msm_mpdec_resume(void)
 		per_cpu(msm_mpdec_cpudata, cpu).device_suspended = false;
 
         /* wake up main work thread */
-        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
-                           msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work, 0);
 
         pr_info(MPDEC_TAG"Screen -> on. Activated mpdecision. | Mask=[%d%d%d%d]\n",
 		cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
