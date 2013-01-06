@@ -6,7 +6,7 @@
  * -single core while screen is off
  * -extensive sysfs tuneables
  *
- * Copyright (c) 2012, Dennis Rassmann <showp1984@gmail.com>
+ * Copyright (c) 2012-2013, Dennis Rassmann <showp1984@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
