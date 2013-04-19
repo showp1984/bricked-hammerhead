@@ -96,6 +96,7 @@ extern unsigned long acpuclk_get_rate(int);
 
 unsigned int state = MSM_MPDEC_IDLE;
 bool was_paused = false;
+static cputime64_t mpdec_paused_until = 0;
 
 static unsigned long get_rate(int cpu)
 {
@@ -219,6 +220,10 @@ static void msm_mpdec_work_thread(struct work_struct *work)
         if (ktime_to_ms(ktime_get()) <= msm_mpdec_tuners_ins.startdelay)
                 goto out;
 
+        /* Check if we are paused */
+        if (mpdec_paused_until >= ktime_to_ms(ktime_get()))
+                goto out;
+
         for_each_possible_cpu(cpu) {
                 if ((per_cpu(msm_mpdec_cpudata, cpu).device_suspended == true)) {
                         suspended = true;
@@ -261,7 +266,7 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 			} else if (per_cpu(msm_mpdec_cpudata, cpu).online != cpu_online(cpu)) {
 				pr_info(MPDEC_TAG"CPU[%d] was controlled outside of mpdecision! | pausing [%d]ms\n",
 						cpu, msm_mpdec_tuners_ins.pause);
-				msleep(msm_mpdec_tuners_ins.pause);
+				mpdec_paused_until = ktime_to_ms(ktime_get()) + msm_mpdec_tuners_ins.pause;
 				was_paused = true;
 			}
 		}
@@ -279,7 +284,7 @@ static void msm_mpdec_work_thread(struct work_struct *work)
 			} else if (per_cpu(msm_mpdec_cpudata, cpu).online != cpu_online(cpu)) {
 				pr_info(MPDEC_TAG"CPU[%d] was controlled outside of mpdecision! | pausing [%d]ms\n",
 						cpu, msm_mpdec_tuners_ins.pause);
-				msleep(msm_mpdec_tuners_ins.pause);
+				mpdec_paused_until = ktime_to_ms(ktime_get()) + msm_mpdec_tuners_ins.pause;
 				was_paused = true;
 			}
 		}
