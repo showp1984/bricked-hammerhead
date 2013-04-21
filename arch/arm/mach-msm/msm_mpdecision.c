@@ -672,7 +672,13 @@ static ssize_t show_time_cpus_on(struct kobject *a, struct attribute *b,
     int cpu = 0;
 
     for_each_possible_cpu(cpu) {
-        len += sprintf(buf + len, "%i %llu\n", cpu, per_cpu(msm_mpdec_cpudata, cpu).on_time_total);
+        if (cpu_online(cpu)) {
+            len += sprintf(buf + len, "%i %llu\n", cpu,
+                           (per_cpu(msm_mpdec_cpudata, cpu).on_time_total +
+                            (ktime_to_ms(ktime_get()) -
+                             per_cpu(msm_mpdec_cpudata, cpu).on_time)));
+        } else
+            len += sprintf(buf + len, "%i %llu\n", cpu, per_cpu(msm_mpdec_cpudata, cpu).on_time_total);
     }
 
     return len;
