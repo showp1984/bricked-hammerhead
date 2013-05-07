@@ -1905,6 +1905,13 @@ config MSM_MPDEC
 	  This enables kernel based multi core control.
 	  (up/down hotplug based on load)
 
+config MSM_MPDEC_INPUTBOOST_CPUMIN
+	bool "Enable kernel based mpdecision"
+	depends on MSM_MPDEC
+	default n
+	help
+	  This pushes the cpu min speed to predefined values on input events.
+
 if CPU_FREQ_MSM
 
 config MSM_CPU_FREQ_SET_MIN_MAX
