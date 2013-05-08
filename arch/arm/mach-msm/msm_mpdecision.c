@@ -403,7 +403,7 @@ static void msm_mpdec_revib_work_thread(struct work_struct *work) {
         queue_delayed_work_on(cpu,
                               msm_mpdec_revib_workq,
                               &per_cpu(msm_mpdec_revib_work, cpu),
-                              msecs_to_jiffies((MSM_MPDEC_BOOSTTIME-500)));
+                              msecs_to_jiffies((per_cpu(msm_mpdec_cpudata, cpu).boost_until - ktime_to_ms(ktime_get()))));
     }
     return;
 }
@@ -439,7 +439,7 @@ static void mpdec_input_callback(struct work_struct *unused) {
         queue_delayed_work_on(cpu,
                               msm_mpdec_revib_workq,
                               &per_cpu(msm_mpdec_revib_work, cpu),
-                              msecs_to_jiffies((MSM_MPDEC_BOOSTTIME-500)));
+                              msecs_to_jiffies(MSM_MPDEC_BOOSTTIME));
     } else if (boosted && per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running) {
         per_cpu(msm_mpdec_cpudata, cpu).boost_until = ktime_to_ms(ktime_get()) + MSM_MPDEC_BOOSTTIME;
     }
