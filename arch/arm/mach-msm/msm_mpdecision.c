@@ -378,6 +378,12 @@ static void unboost_cpu(int cpu) {
 #endif
                 per_cpu(msm_mpdec_cpudata, cpu).is_boosted = false;
                 per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = false;
+                if ((cpu_policy->min != per_cpu(msm_mpdec_cpudata, cpu).boost_freq) &&
+                    (cpu_policy->min != per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq)) {
+                    pr_info(MPDEC_TAG"cpu%u min was changed while boosted (%lu->%u), using new min",
+                            cpu, per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq, cpu_policy->min);
+                    per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq = cpu_policy->min;
+                }
                 update_cpu_min_freq(cpu_policy, cpu, per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq);
                 cpufreq_cpu_put(cpu_policy);
                 mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).unboost_mutex);
