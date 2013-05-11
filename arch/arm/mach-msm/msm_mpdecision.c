@@ -416,13 +416,18 @@ static void unboost_cpu(int cpu) {
 static void msm_mpdec_revib_work_thread(struct work_struct *work) {
     int cpu = smp_processor_id();
 
-    if (ktime_to_ms(ktime_get()) > per_cpu(msm_mpdec_cpudata, cpu).boost_until) {
-        unboost_cpu(cpu);
+    if (per_cpu(msm_mpdec_cpudata, cpu).is_boosted) {
+        per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = true;
+        if (ktime_to_ms(ktime_get()) > per_cpu(msm_mpdec_cpudata, cpu).boost_until) {
+            unboost_cpu(cpu);
+        } else {
+            queue_delayed_work_on(cpu,
+                                  msm_mpdec_revib_workq,
+                                  &per_cpu(msm_mpdec_revib_work, cpu),
+                                  msecs_to_jiffies((per_cpu(msm_mpdec_cpudata, cpu).boost_until - ktime_to_ms(ktime_get()))));
+        }
     } else {
-        queue_delayed_work_on(cpu,
-                              msm_mpdec_revib_workq,
-                              &per_cpu(msm_mpdec_revib_work, cpu),
-                              msecs_to_jiffies((per_cpu(msm_mpdec_cpudata, cpu).boost_until - ktime_to_ms(ktime_get()))));
+        per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = false;
     }
     return;
 }
