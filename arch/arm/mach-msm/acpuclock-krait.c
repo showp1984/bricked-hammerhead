@@ -1188,6 +1188,9 @@ static struct pvs_table * __init select_freq_plan(
 			 drv.pvs_bin);
 	}
 
+#ifdef CONFIG_DEBUG_FS
+        krait_chip_variant = drv.pvs_bin;
+#endif
 	return &params->pvs_tables[drv.speed_bin][drv.pvs_bin];
 }
 
@@ -1223,10 +1226,6 @@ static void __init drv_data_init(struct device *dev,
 	drv.acpu_freq_tbl = kmemdup(pvs->table, pvs->size, GFP_KERNEL);
 	BUG_ON(!drv.acpu_freq_tbl);
 	drv.boost_uv = pvs->boost_uv;
-
-#ifdef CONFIG_DEBUG_FS
-        krait_chip_variant = tbl_idx;
-#endif
 
 	acpuclk_krait_data.power_collapse_khz = params->stby_khz;
 	acpuclk_krait_data.wait_for_irq_khz = params->stby_khz;
@@ -1275,15 +1274,11 @@ static void __init hw_init(void)
 #ifdef CONFIG_DEBUG_FS
 static int krait_variant_debugfs_show(struct seq_file *s, void *data)
 {
-        if (krait_chip_variant == PVS_UNKNOWN) {
-                seq_printf(s, "Your krait chip variant is UNKNOWN!\n");
-        } else {
-                seq_printf(s, "Your krait chip variant is: \n");
-                seq_printf(s, "[%s] SLOW \n", ((krait_chip_variant == PVS_SLOW) ? "X" : " "));
-                seq_printf(s, "[%s] NOMINAL \n", ((krait_chip_variant == PVS_NOMINAL) ? "X" : " "));
-                seq_printf(s, "[%s] FAST \n", ((krait_chip_variant == PVS_FAST) ? "X" : " "));
-                seq_printf(s, "[%s] FASTER \n", ((krait_chip_variant == PVS_FASTER) ? "X" : " "));
-        }
+	seq_printf(s, "Your krait chip variant is: \n");
+	seq_printf(s, "[%s] SLOW \n", ((krait_chip_variant == PVS_SLOW) ? "X" : " "));
+	seq_printf(s, "[%s] NOMINAL \n", ((krait_chip_variant == PVS_NOMINAL) ? "X" : " "));
+	seq_printf(s, "[%s] FAST \n", ((krait_chip_variant == PVS_FAST) ? "X" : " "));
+	seq_printf(s, "[%s] FASTER \n", ((krait_chip_variant == PVS_FASTER) ? "X" : " "));
 
 	return 0;
 }
