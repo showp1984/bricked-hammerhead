@@ -1275,10 +1275,13 @@ static void __init hw_init(void)
 static int krait_variant_debugfs_show(struct seq_file *s, void *data)
 {
 	seq_printf(s, "Your krait chip variant is: \n");
-	seq_printf(s, "[%s] SLOW \n", ((krait_chip_variant == PVS_SLOW) ? "X" : " "));
-	seq_printf(s, "[%s] NOMINAL \n", ((krait_chip_variant == PVS_NOMINAL) ? "X" : " "));
-	seq_printf(s, "[%s] FAST \n", ((krait_chip_variant == PVS_FAST) ? "X" : " "));
-	seq_printf(s, "[%s] FASTER \n", ((krait_chip_variant == PVS_FASTER) ? "X" : " "));
+	seq_printf(s, "[%s] SNAIL \n", ((krait_chip_variant == 0) ? "X" : " "));
+	seq_printf(s, "[%s] SLOWER \n", ((krait_chip_variant == 1) ? "X" : " "));
+	seq_printf(s, "[%s] SLOW \n", ((krait_chip_variant == 2) ? "X" : " "));
+	seq_printf(s, "[%s] NOMINAL \n", ((krait_chip_variant == 3) ? "X" : " "));
+	seq_printf(s, "[%s] FAST \n", ((krait_chip_variant == 4) ? "X" : " "));
+	seq_printf(s, "[%s] FASTER \n", ((krait_chip_variant == 5) ? "X" : " "));
+	seq_printf(s, "[%s] OVER 3000! \n", ((krait_chip_variant == 6) ? "X" : " "));
 
 	return 0;
 }
