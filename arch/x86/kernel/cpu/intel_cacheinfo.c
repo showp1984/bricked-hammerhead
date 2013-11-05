@@ -529,7 +529,7 @@ static struct _cache_attr subcaches =
 #endif /* CONFIG_AMD_NB */
 
 static int
-__cpuinit cpuid4_cache_lookup_regs(int index,
+cpuid4_cache_lookup_regs(int index,
 				   struct _cpuid4_info_regs *this_leaf)
 {
 	union _cpuid4_leaf_eax	eax;

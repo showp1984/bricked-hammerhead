@@ -2372,7 +2372,7 @@ static void dmi_check_multi(void)
  * multi-chassis.
  * Use DMI to check them
  */
-__cpuinit int apic_is_clustered_box(void)
+int apic_is_clustered_box(void)
 {
 	dmi_check_multi();
 	if (multi)

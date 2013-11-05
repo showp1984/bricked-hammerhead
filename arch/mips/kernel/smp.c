@@ -84,7 +84,7 @@ static inline void set_cpu_sibling_map(int cpu)
 
 struct plat_smp_ops *mp_ops;
 
-__cpuinit void register_smp_ops(struct plat_smp_ops *ops)
+void register_smp_ops(struct plat_smp_ops *ops)
 {
 	if (mp_ops)
 		printk(KERN_WARNING "Overriding previously set SMP ops\n");

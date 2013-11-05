@@ -818,7 +818,7 @@ static void __init check_system_tsc_reliable(void)
  * Make an educated guess if the TSC is trustworthy and synchronized
  * over all CPUs.
  */
-__cpuinit int unsynchronized_tsc(void)
+int unsynchronized_tsc(void)
 {
 	if (!cpu_has_tsc || tsc_unstable)
 		return 1;
