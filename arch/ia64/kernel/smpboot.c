@@ -365,7 +365,7 @@ smp_setup_percpu_timer (void)
 {
 }
 
-static void __cpuinit
+static void
 smp_callin (void)
 {
 	int cpuid, phys_id, itc_master;
@@ -458,7 +458,7 @@ smp_callin (void)
 /*
  * Activate a secondary processor.  head.S calls this.
  */
-int __cpuinit
+int
 start_secondary (void *unused)
 {
 	/* Early console may use I/O ports */
@@ -487,7 +487,7 @@ struct create_idle {
 	int cpu;
 };
 
-void __cpuinit
+void
 do_fork_idle(struct work_struct *work)
 {
 	struct create_idle *c_idle =
@@ -497,7 +497,7 @@ do_fork_idle(struct work_struct *work)
 	complete(&c_idle->done);
 }
 
-static int __cpuinit
+static int
 do_boot_cpu (int sapicid, int cpu)
 {
 	int timeout;
@@ -792,7 +792,7 @@ set_cpu_sibling_map(int cpu)
 	}
 }
 
-int __cpuinit
+int
 __cpu_up (unsigned int cpu)
 {
 	int ret;

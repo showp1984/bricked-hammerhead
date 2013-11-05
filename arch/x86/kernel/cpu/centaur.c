@@ -468,7 +468,7 @@ static void init_centaur(struct cpuinfo_x86 *c)
 #endif
 }
 
-static unsigned int __cpuinit
+static unsigned int
 centaur_size_cache(struct cpuinfo_x86 *c, unsigned int size)
 {
 #ifdef CONFIG_X86_32

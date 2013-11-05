@@ -314,7 +314,7 @@ static void cpu_vsyscall_init(void *arg)
 	vsyscall_set_cpu(raw_smp_processor_id());
 }
 
-static int __cpuinit
+static int
 cpu_vsyscall_notifier(struct notifier_block *n, unsigned long action, void *arg)
 {
 	long cpu = (long)arg;

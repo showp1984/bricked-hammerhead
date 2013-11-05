@@ -73,7 +73,7 @@ extern int update_cr16_clocksource(void);	/* from time.c */
  *
  * FIXME: doesn't do much yet...
  */
-static void __cpuinit
+static void
 init_percpu_prof(unsigned long cpunum)
 {
 	struct cpuinfo_parisc *p;
