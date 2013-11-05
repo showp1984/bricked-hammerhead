@@ -217,7 +217,7 @@ void native_flush_tlb_others(const struct cpumask *cpumask,
 	flush_tlb_others_ipi(cpumask, mm, va);
 }
 
-static void __cpuinit calculate_tlb_offset(void)
+static void calculate_tlb_offset(void)
 {
 	int cpu, node, nr_node_vecs, idx = 0;
 	/*
@@ -248,7 +248,7 @@ static void __cpuinit calculate_tlb_offset(void)
 	}
 }
 
-static int __cpuinit tlb_cpuhp_notify(struct notifier_block *n,
+static int tlb_cpuhp_notify(struct notifier_block *n,
 		unsigned long action, void *hcpu)
 {
 	switch (action & 0xf) {
@@ -259,7 +259,7 @@ static int __cpuinit tlb_cpuhp_notify(struct notifier_block *n,
 	return NOTIFY_OK;
 }
 
-static int __cpuinit init_smp_flush(void)
+static int init_smp_flush(void)
 {
 	int i;
 

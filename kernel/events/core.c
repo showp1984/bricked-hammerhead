@@ -6983,7 +6983,7 @@ static void __init perf_event_init_all_cpus(void)
 	}
 }
 
-static void __cpuinit perf_event_init_cpu(int cpu)
+static void perf_event_init_cpu(int cpu)
 {
 	struct swevent_htable *swhash = &per_cpu(swevent_htable, cpu);
 

@@ -474,7 +474,7 @@ void init_cpu_vtimer(void)
 	set_vtimer(0x7fffffffffffffffULL);
 }
 
-static int __cpuinit s390_nohz_notify(struct notifier_block *self,
+static int s390_nohz_notify(struct notifier_block *self,
 				      unsigned long action, void *hcpu)
 {
 	struct s390_idle_data *idle;

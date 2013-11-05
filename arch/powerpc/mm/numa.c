@@ -79,7 +79,7 @@ static void __init setup_node_to_cpumask_map(void)
 	dbg("Node to cpumask map for %d nodes\n", nr_node_ids);
 }
 
-static int __cpuinit fake_numa_create_new_node(unsigned long end_pfn,
+static int fake_numa_create_new_node(unsigned long end_pfn,
 						unsigned int *nid)
 {
 	unsigned long long mem;
@@ -539,7 +539,7 @@ static int of_drconf_to_nid_single(struct of_drconf_cell *drmem,
  * Figure out to which domain a cpu belongs and stick it there.
  * Return the id of the domain used.
  */
-static int __cpuinit numa_setup_cpu(unsigned long lcpu)
+static int numa_setup_cpu(unsigned long lcpu)
 {
 	int nid = 0;
 	struct device_node *cpu = of_get_cpu_node(lcpu, NULL);
@@ -561,7 +561,7 @@ out:
 	return nid;
 }
 
-static int __cpuinit cpu_numa_callback(struct notifier_block *nfb,
+static int cpu_numa_callback(struct notifier_block *nfb,
 			     unsigned long action,
 			     void *hcpu)
 {

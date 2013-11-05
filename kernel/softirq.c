@@ -679,7 +679,7 @@ void send_remote_softirq(struct call_single_data *cp, int cpu, int softirq)
 }
 EXPORT_SYMBOL(send_remote_softirq);
 
-static int __cpuinit remote_softirq_cpu_notify(struct notifier_block *self,
+static int remote_softirq_cpu_notify(struct notifier_block *self,
 					       unsigned long action, void *hcpu)
 {
 	/*
@@ -837,7 +837,7 @@ static void takeover_tasklets(unsigned int cpu)
 }
 #endif /* CONFIG_HOTPLUG_CPU */
 
-static int __cpuinit cpu_callback(struct notifier_block *nfb,
+static int cpu_callback(struct notifier_block *nfb,
 				  unsigned long action,
 				  void *hcpu)
 {

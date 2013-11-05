@@ -1227,7 +1227,7 @@ int acpi_processor_cst_has_changed(struct acpi_processor *pr)
 
 static int acpi_processor_registered;
 
-int __cpuinit acpi_processor_power_init(struct acpi_processor *pr,
+int acpi_processor_power_init(struct acpi_processor *pr,
 			      struct acpi_device *device)
 {
 	acpi_status status = 0;

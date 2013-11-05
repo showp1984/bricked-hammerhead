@@ -48,7 +48,7 @@ cpumask_t smp_commenced_mask = CPU_MASK_NONE;
  * instruction which is much better...
  */
 
-void __cpuinit smp_store_cpu_info(int id)
+void smp_store_cpu_info(int id)
 {
 	int cpu_node;
 	int mid;
@@ -411,10 +411,10 @@ void __init smp_prepare_boot_cpu(void)
 	set_cpu_possible(cpuid, true);
 }
 
-int __cpuinit __cpu_up(unsigned int cpu)
+int __cpu_up(unsigned int cpu)
 {
-	extern int __cpuinit smp4m_boot_one_cpu(int);
-	extern int __cpuinit smp4d_boot_one_cpu(int);
+	extern int smp4m_boot_one_cpu(int);
+	extern int smp4d_boot_one_cpu(int);
 	int ret=0;
 
 	switch(sparc_cpu_model) {

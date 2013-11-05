@@ -252,7 +252,7 @@ static bool __init processor_physically_present(acpi_handle handle)
 	return true;
 }
 
-static void __cpuinit acpi_set_pdc_bits(u32 *buf)
+static void acpi_set_pdc_bits(u32 *buf)
 {
 	buf[0] = ACPI_PDC_REVISION_ID;
 	buf[1] = 1;
@@ -335,7 +335,7 @@ acpi_processor_eval_pdc(acpi_handle handle, struct acpi_object_list *pdc_in)
 	return status;
 }
 
-void __cpuinit acpi_processor_set_pdc(acpi_handle handle)
+void acpi_processor_set_pdc(acpi_handle handle)
 {
 	struct acpi_object_list *obj_list;
 

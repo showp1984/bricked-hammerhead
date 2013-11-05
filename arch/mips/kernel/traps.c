@@ -1517,7 +1517,7 @@ static int __init ulri_disable(char *s)
 }
 __setup("noulri", ulri_disable);
 
-void __cpuinit per_cpu_trap_init(void)
+void per_cpu_trap_init(void)
 {
 	unsigned int cpu = smp_processor_id();
 	unsigned int status_set = ST0_CU0;
@@ -1646,7 +1646,7 @@ static char panic_null_cerr[] __cpuinitdata =
  * This is suitable only for the cache error exception which is the only
  * exception handler that is being run uncached.
  */
-void __cpuinit set_uncached_handler(unsigned long offset, void *addr,
+void set_uncached_handler(unsigned long offset, void *addr,
 	unsigned long size)
 {
 	unsigned long uncached_ebase = CKSEG1ADDR(ebase);

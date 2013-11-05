@@ -212,7 +212,7 @@ void __init arch_init_irq(void)
 	write_c0_eimr(nlm_irq_mask);
 }
 
-void __cpuinit nlm_smp_irq_init(void)
+void nlm_smp_irq_init(void)
 {
 	/* set interrupt mask for non-zero cpus */
 	write_c0_eimr(nlm_irq_mask);

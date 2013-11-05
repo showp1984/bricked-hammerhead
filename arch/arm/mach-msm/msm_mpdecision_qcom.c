@@ -356,7 +356,7 @@ static struct notifier_block msm_mpd_hotplug_nb = {
 	.notifier_call = msm_mpd_hotplug_notifier,
 };
 
-static int __cpuinit msm_mpd_do_hotplug(void *data)
+static int msm_mpd_do_hotplug(void *data)
 {
 	int *event = (int *)data;
 	int cpu;

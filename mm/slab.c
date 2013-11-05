@@ -909,7 +909,7 @@ static void next_reap_node(void)
  * the CPUs getting into lockstep and contending for the global cache chain
  * lock.
  */
-static void __cpuinit start_cpu_timer(int cpu)
+static void start_cpu_timer(int cpu)
 {
 	struct delayed_work *reap_work = &per_cpu(slab_reap_work, cpu);
 
@@ -1184,7 +1184,7 @@ static int init_cache_nodelists_node(int node)
 	return 0;
 }
 
-static void __cpuinit cpuup_canceled(long cpu)
+static void cpuup_canceled(long cpu)
 {
 	struct kmem_cache *cachep;
 	struct kmem_list3 *l3 = NULL;
@@ -1249,7 +1249,7 @@ free_array_cache:
 	}
 }
 
-static int __cpuinit cpuup_prepare(long cpu)
+static int cpuup_prepare(long cpu)
 {
 	struct kmem_cache *cachep;
 	struct kmem_list3 *l3 = NULL;
@@ -1329,7 +1329,7 @@ bad:
 	return -ENOMEM;
 }
 
-static int __cpuinit cpuup_callback(struct notifier_block *nfb,
+static int cpuup_callback(struct notifier_block *nfb,
 				    unsigned long action, void *hcpu)
 {
 	long cpu = (long)hcpu;

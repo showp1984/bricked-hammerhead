@@ -1503,7 +1503,7 @@ static void rcu_torture_onoff_cleanup(void)
  * CPU-stall kthread.  It waits as specified by stall_cpu_holdoff, then
  * induces a CPU stall for the time specified by stall_cpu.
  */
-static int __cpuinit rcu_torture_stall(void *args)
+static int rcu_torture_stall(void *args)
 {
 	unsigned long stop_at;
 

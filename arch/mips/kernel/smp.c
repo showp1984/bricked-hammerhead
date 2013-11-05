@@ -96,7 +96,7 @@ __cpuinit void register_smp_ops(struct plat_smp_ops *ops)
  * First C code run on the secondary CPUs after being started up by
  * the master.
  */
-asmlinkage __cpuinit void start_secondary(void)
+asmlinkage void start_secondary(void)
 {
 	unsigned int cpu;
 
@@ -200,7 +200,7 @@ struct create_idle {
 	int cpu;
 };
 
-static void __cpuinit do_fork_idle(struct work_struct *work)
+static void do_fork_idle(struct work_struct *work)
 {
 	struct create_idle *c_idle =
 		container_of(work, struct create_idle, work);
@@ -209,7 +209,7 @@ static void __cpuinit do_fork_idle(struct work_struct *work)
 	complete(&c_idle->done);
 }
 
-int __cpuinit __cpu_up(unsigned int cpu)
+int __cpu_up(unsigned int cpu)
 {
 	struct task_struct *idle;
 

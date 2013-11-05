@@ -1011,7 +1011,7 @@ void __init tsc_init(void)
  * been calibrated. This assumes that CONSTANT_TSC applies to all
  * cpus in the socket - this should be a safe assumption.
  */
-unsigned long __cpuinit calibrate_delay_is_known(void)
+unsigned long calibrate_delay_is_known(void)
 {
 	int i, cpu = smp_processor_id();
 

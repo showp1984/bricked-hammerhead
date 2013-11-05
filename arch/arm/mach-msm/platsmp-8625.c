@@ -80,7 +80,7 @@ static void clear_pending_spi(unsigned int irq)
 	local_irq_enable();
 }
 
-void __cpuinit msm8625_platform_secondary_init(unsigned int cpu)
+void msm8625_platform_secondary_init(unsigned int cpu)
 {
 	WARN_ON(msm_platform_secondary_init(cpu));
 
@@ -111,7 +111,7 @@ void __cpuinit msm8625_platform_secondary_init(unsigned int cpu)
 	spin_unlock(&boot_lock);
 }
 
-static int __cpuinit msm8625_release_secondary(unsigned int cpu)
+static int msm8625_release_secondary(unsigned int cpu)
 {
 	void __iomem *base_ptr;
 	int value = 0;
@@ -155,7 +155,7 @@ void __iomem *core_reset_base(unsigned int cpu)
 	return cpu_data[cpu].reset_core_base;
 }
 
-int __cpuinit msm8625_boot_secondary(unsigned int cpu, struct task_struct *idle)
+int msm8625_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long timeout;
 

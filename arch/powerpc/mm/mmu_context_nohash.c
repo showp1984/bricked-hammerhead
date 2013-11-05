@@ -329,7 +329,7 @@ void destroy_context(struct mm_struct *mm)
 
 #ifdef CONFIG_SMP
 
-static int __cpuinit mmu_context_cpu_notify(struct notifier_block *self,
+static int mmu_context_cpu_notify(struct notifier_block *self,
 					    unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned int)(long)hcpu;

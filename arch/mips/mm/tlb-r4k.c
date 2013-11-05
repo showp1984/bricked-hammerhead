@@ -385,7 +385,7 @@ static int __init set_ntlb(char *str)
 
 __setup("ntlb=", set_ntlb);
 
-void __cpuinit tlb_init(void)
+void tlb_init(void)
 {
 	/*
 	 * You should never change this register:

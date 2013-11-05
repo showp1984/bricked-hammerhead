@@ -37,7 +37,7 @@
 extern void vide(void);
 __asm__(".align 4\nvide: ret");
 
-static void __cpuinit init_amd_k5(struct cpuinfo_x86 *c)
+static void init_amd_k5(struct cpuinfo_x86 *c)
 {
 /*
  * General Systems BIOSen alias the cpu frequency registers
@@ -55,7 +55,7 @@ static void __cpuinit init_amd_k5(struct cpuinfo_x86 *c)
 }
 
 
-static void __cpuinit init_amd_k6(struct cpuinfo_x86 *c)
+static void init_amd_k6(struct cpuinfo_x86 *c)
 {
 	u32 l, h;
 	int mbytes = num_physpages >> (20-PAGE_SHIFT);
@@ -147,7 +147,7 @@ static void __cpuinit init_amd_k6(struct cpuinfo_x86 *c)
 	}
 }
 
-static void __cpuinit amd_k7_smp_check(struct cpuinfo_x86 *c)
+static void amd_k7_smp_check(struct cpuinfo_x86 *c)
 {
 	/* calling is from identify_secondary_cpu() ? */
 	if (!c->cpu_index)
@@ -194,7 +194,7 @@ valid_k7:
 	;
 }
 
-static void __cpuinit init_amd_k7(struct cpuinfo_x86 *c)
+static void init_amd_k7(struct cpuinfo_x86 *c)
 {
 	u32 l, h;
 
@@ -239,7 +239,7 @@ static void __cpuinit init_amd_k7(struct cpuinfo_x86 *c)
  * To workaround broken NUMA config.  Read the comment in
  * srat_detect_node().
  */
-static int __cpuinit nearby_node(int apicid)
+static int nearby_node(int apicid)
 {
 	int i, node;
 
@@ -264,7 +264,7 @@ static int __cpuinit nearby_node(int apicid)
  * (2) AMD processors supporting compute units
  */
 #ifdef CONFIG_X86_HT
-static void __cpuinit amd_get_topology(struct cpuinfo_x86 *c)
+static void amd_get_topology(struct cpuinfo_x86 *c)
 {
 	u32 nodes, cores_per_cu = 1;
 	u8 node_id;
@@ -314,7 +314,7 @@ static void __cpuinit amd_get_topology(struct cpuinfo_x86 *c)
  * On a AMD dual core setup the lower bits of the APIC id distingush the cores.
  * Assumes number of cores is a power of two.
  */
-static void __cpuinit amd_detect_cmp(struct cpuinfo_x86 *c)
+static void amd_detect_cmp(struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_X86_HT
 	unsigned bits;
@@ -341,7 +341,7 @@ int amd_get_nb_id(int cpu)
 }
 EXPORT_SYMBOL_GPL(amd_get_nb_id);
 
-static void __cpuinit srat_detect_node(struct cpuinfo_x86 *c)
+static void srat_detect_node(struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_NUMA
 	int cpu = smp_processor_id();
@@ -393,7 +393,7 @@ static void __cpuinit srat_detect_node(struct cpuinfo_x86 *c)
 #endif
 }
 
-static void __cpuinit early_init_amd_mc(struct cpuinfo_x86 *c)
+static void early_init_amd_mc(struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_X86_HT
 	unsigned bits, ecx;
@@ -419,7 +419,7 @@ static void __cpuinit early_init_amd_mc(struct cpuinfo_x86 *c)
 #endif
 }
 
-static void __cpuinit bsp_init_amd(struct cpuinfo_x86 *c)
+static void bsp_init_amd(struct cpuinfo_x86 *c)
 {
 	if (cpu_has(c, X86_FEATURE_CONSTANT_TSC)) {
 
@@ -447,7 +447,7 @@ static void __cpuinit bsp_init_amd(struct cpuinfo_x86 *c)
 	}
 }
 
-static void __cpuinit early_init_amd(struct cpuinfo_x86 *c)
+static void early_init_amd(struct cpuinfo_x86 *c)
 {
 	early_init_amd_mc(c);
 
@@ -482,7 +482,7 @@ static void __cpuinit early_init_amd(struct cpuinfo_x86 *c)
 #endif
 }
 
-static void __cpuinit init_amd(struct cpuinfo_x86 *c)
+static void init_amd(struct cpuinfo_x86 *c)
 {
 	u32 dummy;
 
@@ -687,7 +687,7 @@ static void __cpuinit init_amd(struct cpuinfo_x86 *c)
 }
 
 #ifdef CONFIG_X86_32
-static unsigned int __cpuinit amd_size_cache(struct cpuinfo_x86 *c,
+static unsigned int amd_size_cache(struct cpuinfo_x86 *c,
 							unsigned int size)
 {
 	/* AMD errata T13 (order #21922) */

@@ -3993,7 +3993,7 @@ EXPORT_SYMBOL(kmem_cache_create);
  * Use the cpu notifier to insure that the cpu slabs are flushed when
  * necessary.
  */
-static int __cpuinit slab_cpuup_callback(struct notifier_block *nfb,
+static int slab_cpuup_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
 {
 	long cpu = (long)hcpu;

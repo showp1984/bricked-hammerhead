@@ -567,7 +567,7 @@ static struct platform_driver appldata_pdrv = {
 
 /******************************* init / exit *********************************/
 
-static void __cpuinit appldata_online_cpu(int cpu)
+static void appldata_online_cpu(int cpu)
 {
 	init_virt_timer(&per_cpu(appldata_timer, cpu));
 	per_cpu(appldata_timer, cpu).function = appldata_timer_function;
@@ -579,7 +579,7 @@ static void __cpuinit appldata_online_cpu(int cpu)
 	spin_unlock(&appldata_timer_lock);
 }
 
-static void __cpuinit appldata_offline_cpu(int cpu)
+static void appldata_offline_cpu(int cpu)
 {
 	del_virt_timer(&per_cpu(appldata_timer, cpu));
 	if (atomic_dec_and_test(&appldata_expire_count)) {
@@ -591,7 +591,7 @@ static void __cpuinit appldata_offline_cpu(int cpu)
 	spin_unlock(&appldata_timer_lock);
 }
 
-static int __cpuinit appldata_cpu_notify(struct notifier_block *self,
+static int appldata_cpu_notify(struct notifier_block *self,
 					 unsigned long action,
 					 void *hcpu)
 {

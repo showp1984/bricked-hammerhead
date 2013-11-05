@@ -84,7 +84,7 @@ static void mips_timer_dispatch(void)
 }
 
 
-unsigned __cpuinit get_c0_compare_int(void)
+unsigned get_c0_compare_int(void)
 {
 #ifdef MSC01E_INT_BASE
 	if (cpu_has_veic) {

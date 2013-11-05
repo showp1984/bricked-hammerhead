@@ -28,7 +28,7 @@ static atomic_t __cpuinitdata count_reference = ATOMIC_INIT(0);
 #define COUNTON	100
 #define NR_LOOPS 5
 
-void __cpuinit synchronise_count_master(void)
+void synchronise_count_master(void)
 {
 	int i;
 	unsigned long flags;
@@ -108,7 +108,7 @@ void __cpuinit synchronise_count_master(void)
 	printk("done.\n");
 }
 
-void __cpuinit synchronise_count_slave(void)
+void synchronise_count_slave(void)
 {
 	int i;
 	unsigned long flags;

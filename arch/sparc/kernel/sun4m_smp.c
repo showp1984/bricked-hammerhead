@@ -33,7 +33,7 @@ swap_ulong(volatile unsigned long *ptr, unsigned long val)
 static void smp4m_ipi_init(void);
 static void smp_setup_percpu_timer(void);
 
-void __cpuinit smp4m_callin(void)
+void smp4m_callin(void)
 {
 	int cpuid = hard_smp_processor_id();
 
@@ -91,7 +91,7 @@ void __init smp4m_boot_cpus(void)
 	local_flush_cache_all();
 }
 
-int __cpuinit smp4m_boot_one_cpu(int i)
+int smp4m_boot_one_cpu(int i)
 {
 	unsigned long *entry = &sun4m_cpu_startup;
 	struct task_struct *p;
@@ -280,7 +280,7 @@ void smp4m_percpu_timer_interrupt(struct pt_regs *regs)
 	set_irq_regs(old_regs);
 }
 
-static void __cpuinit smp_setup_percpu_timer(void)
+static void smp_setup_percpu_timer(void)
 {
 	int cpu = smp_processor_id();
 

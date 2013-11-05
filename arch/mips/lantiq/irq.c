@@ -317,7 +317,7 @@ void __init arch_init_irq(void)
 #endif
 }
 
-unsigned int __cpuinit get_c0_compare_int(void)
+unsigned int get_c0_compare_int(void)
 {
 	return CP0_LEGACY_COMPARE_IRQ;
 }

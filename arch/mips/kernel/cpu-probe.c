@@ -761,7 +761,7 @@ static inline unsigned int decode_config4(struct cpuinfo_mips *c)
 	return config4 & MIPS_CONF_M;
 }
 
-static void __cpuinit decode_configs(struct cpuinfo_mips *c)
+static void decode_configs(struct cpuinfo_mips *c)
 {
 	int ok;
 

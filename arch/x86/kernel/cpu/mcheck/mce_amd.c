@@ -432,7 +432,7 @@ static struct kobj_type threshold_ktype = {
 	.default_attrs		= default_attrs,
 };
 
-static __cpuinit int allocate_threshold_blocks(unsigned int cpu,
+static int allocate_threshold_blocks(unsigned int cpu,
 					       unsigned int bank,
 					       unsigned int block,
 					       u32 address)
@@ -511,7 +511,7 @@ out_free:
 	return err;
 }
 
-static __cpuinit long
+static long
 local_allocate_threshold_blocks(int cpu, unsigned int bank)
 {
 	return allocate_threshold_blocks(cpu, bank, 0,
@@ -519,7 +519,7 @@ local_allocate_threshold_blocks(int cpu, unsigned int bank)
 }
 
 /* symlinks sibling shared banks to first core.  first core owns dir/files. */
-static __cpuinit int threshold_create_bank(unsigned int cpu, unsigned int bank)
+static int threshold_create_bank(unsigned int cpu, unsigned int bank)
 {
 	int i, err = 0;
 	struct threshold_bank *b = NULL;
@@ -607,7 +607,7 @@ out:
 }
 
 /* create dir/files for all valid threshold banks */
-static __cpuinit int threshold_create_device(unsigned int cpu)
+static int threshold_create_device(unsigned int cpu)
 {
 	unsigned int bank;
 	int err = 0;

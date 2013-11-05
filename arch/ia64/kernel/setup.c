@@ -918,7 +918,7 @@ get_cache_info(void)
 void __cpuinit
 cpu_init (void)
 {
-	extern void __cpuinit ia64_mmu_init (void *);
+	extern void ia64_mmu_init (void *);
 	static unsigned long max_num_phys_stacked = IA64_NUM_PHYS_STACK_REG;
 	unsigned long num_phys_stacked;
 	pal_vm_info_2_u_t vmi;

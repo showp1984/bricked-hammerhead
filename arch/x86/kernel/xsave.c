@@ -459,7 +459,7 @@ static void __init xstate_enable_boot_cpu(void)
  * This is somewhat obfuscated due to the lack of powerful enough
  * overrides for the section checks.
  */
-void __cpuinit xsave_init(void)
+void xsave_init(void)
 {
 	static __refdata void (*next_func)(void) = xstate_enable_boot_cpu;
 	void (*this_func)(void);

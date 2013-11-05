@@ -125,7 +125,7 @@ static void __init plat_perf_setup(void)
 	}
 }
 
-unsigned int __cpuinit get_c0_compare_int(void)
+unsigned int get_c0_compare_int(void)
 {
 #ifdef MSC01E_INT_BASE
 	if (cpu_has_veic) {

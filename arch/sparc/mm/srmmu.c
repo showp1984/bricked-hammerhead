@@ -1451,7 +1451,7 @@ static void __init init_vac_layout(void)
 	       (int)vac_cache_size, (int)vac_line_size);
 }
 
-static void __cpuinit poke_hypersparc(void)
+static void poke_hypersparc(void)
 {
 	volatile unsigned long clear;
 	unsigned long mreg = srmmu_get_mmureg();
@@ -1506,7 +1506,7 @@ static void __init init_hypersparc(void)
 	hypersparc_setup_blockops();
 }
 
-static void __cpuinit poke_cypress(void)
+static void poke_cypress(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 	unsigned long faddr, tagval;
@@ -1594,7 +1594,7 @@ static void __init init_cypress_605(unsigned long mrev)
 	init_cypress_common();
 }
 
-static void __cpuinit poke_swift(void)
+static void poke_swift(void)
 {
 	unsigned long mreg;
 
@@ -1776,7 +1776,7 @@ static void turbosparc_flush_tlb_page(struct vm_area_struct *vma, unsigned long 
 }
 
 
-static void __cpuinit poke_turbosparc(void)
+static void poke_turbosparc(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 	unsigned long ccreg;
@@ -1839,7 +1839,7 @@ static void __init init_turbosparc(void)
 	poke_srmmu = poke_turbosparc;
 }
 
-static void __cpuinit poke_tsunami(void)
+static void poke_tsunami(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 
@@ -1881,7 +1881,7 @@ static void __init init_tsunami(void)
 	tsunami_setup_blockops();
 }
 
-static void __cpuinit poke_viking(void)
+static void poke_viking(void)
 {
 	unsigned long mreg = srmmu_get_mmureg();
 	static int smp_catch;

@@ -248,7 +248,7 @@ static void __init mrst_time_init(void)
 	apbt_time_init();
 }
 
-static void __cpuinit mrst_arch_setup(void)
+static void mrst_arch_setup(void)
 {
 	if (boot_cpu_data.x86 == 6 && boot_cpu_data.x86_model == 0x27)
 		__mrst_cpu_chip = MRST_CPU_CHIP_PENWELL;

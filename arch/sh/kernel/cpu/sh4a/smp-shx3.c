@@ -147,7 +147,7 @@ static struct notifier_block __cpuinitdata shx3_cpu_notifier = {
 	.notifier_call		= shx3_cpu_callback,
 };
 
-static int __cpuinit register_shx3_cpu_notifier(void)
+static int register_shx3_cpu_notifier(void)
 {
 	register_hotcpu_notifier(&shx3_cpu_notifier);
 	return 0;

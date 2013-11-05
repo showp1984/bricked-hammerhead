@@ -4928,7 +4928,7 @@ void select_nohz_load_balancer(int stop_tick)
 	return;
 }
 
-static int __cpuinit sched_ilb_notifier(struct notifier_block *nfb,
+static int sched_ilb_notifier(struct notifier_block *nfb,
 					unsigned long action, void *hcpu)
 {
 	switch (action & ~CPU_TASKS_FROZEN) {

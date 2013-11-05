@@ -813,7 +813,7 @@ static void destroy_comp_task(struct ehca_comp_pool *pool,
 		kthread_stop(task);
 }
 
-static void __cpuinit take_over_work(struct ehca_comp_pool *pool, int cpu)
+static void take_over_work(struct ehca_comp_pool *pool, int cpu)
 {
 	struct ehca_cpu_comp_task *cct = per_cpu_ptr(pool->cpu_comp_tasks, cpu);
 	LIST_HEAD(list);
@@ -835,7 +835,7 @@ static void __cpuinit take_over_work(struct ehca_comp_pool *pool, int cpu)
 
 }
 
-static int __cpuinit comp_pool_callback(struct notifier_block *nfb,
+static int comp_pool_callback(struct notifier_block *nfb,
 					unsigned long action,
 					void *hcpu)
 {

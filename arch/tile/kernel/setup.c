@@ -269,7 +269,7 @@ static void *__init setup_pa_va_mapping(void)
  * This is up to 4 mappings for lowmem, one mapping per memory
  * controller, plus one for our text segment.
  */
-static void __cpuinit store_permanent_mappings(void)
+static void store_permanent_mappings(void)
 {
 	int i;
 
@@ -860,7 +860,7 @@ subsys_initcall(topology_init);
  *
  * Called from setup_arch() on the boot cpu, or online_secondary().
  */
-void __cpuinit setup_cpu(int boot)
+void setup_cpu(int boot)
 {
 	/* The boot cpu sets up its permanent mappings much earlier. */
 	if (!boot)

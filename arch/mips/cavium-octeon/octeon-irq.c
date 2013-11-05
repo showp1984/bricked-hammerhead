@@ -849,12 +849,12 @@ static void (*octeon_irq_ip4)(void);
 
 void __cpuinitdata (*octeon_irq_setup_secondary)(void);
 
-static void __cpuinit octeon_irq_percpu_enable(void)
+static void octeon_irq_percpu_enable(void)
 {
 	irq_cpu_online();
 }
 
-static void __cpuinit octeon_irq_init_ciu_percpu(void)
+static void octeon_irq_init_ciu_percpu(void)
 {
 	int coreid = cvmx_get_core_num();
 	/*
@@ -869,7 +869,7 @@ static void __cpuinit octeon_irq_init_ciu_percpu(void)
 	cvmx_read_csr(CVMX_CIU_INTX_SUM0((coreid * 2)));
 }
 
-static void __cpuinit octeon_irq_setup_secondary_ciu(void)
+static void octeon_irq_setup_secondary_ciu(void)
 {
 
 	__get_cpu_var(octeon_irq_ciu0_en_mirror) = 0;

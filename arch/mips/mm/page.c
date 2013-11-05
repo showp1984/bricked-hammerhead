@@ -146,7 +146,7 @@ pg_addiu(u32 **buf, unsigned int reg1, unsigned int reg2, unsigned int off)
 	}
 }
 
-static void __cpuinit set_prefetch_parameters(void)
+static void set_prefetch_parameters(void)
 {
 	if (cpu_has_64bit_gp_regs || cpu_has_64bit_zero_reg)
 		clear_word_size = 8;
@@ -246,7 +246,7 @@ static void __cpuinit set_prefetch_parameters(void)
 				      4 * copy_word_size));
 }
 
-static void __cpuinit build_clear_store(u32 **buf, int off)
+static void build_clear_store(u32 **buf, int off)
 {
 	if (cpu_has_64bit_gp_regs || cpu_has_64bit_zero_reg) {
 		uasm_i_sd(buf, ZERO, off, A0);
@@ -255,7 +255,7 @@ static void __cpuinit build_clear_store(u32 **buf, int off)
 	}
 }
 
-static inline void __cpuinit build_clear_pref(u32 **buf, int off)
+static inline void build_clear_pref(u32 **buf, int off)
 {
 	if (off & cache_line_mask())
 		return;
@@ -282,7 +282,7 @@ static inline void __cpuinit build_clear_pref(u32 **buf, int off)
 		}
 }
 
-void __cpuinit build_clear_page(void)
+void build_clear_page(void)
 {
 	int off;
 	u32 *buf = (u32 *)&clear_page_array;
@@ -370,7 +370,7 @@ void __cpuinit build_clear_page(void)
 	pr_debug("\t.set pop\n");
 }
 
-static void __cpuinit build_copy_load(u32 **buf, int reg, int off)
+static void build_copy_load(u32 **buf, int reg, int off)
 {
 	if (cpu_has_64bit_gp_regs) {
 		uasm_i_ld(buf, reg, off, A1);
@@ -379,7 +379,7 @@ static void __cpuinit build_copy_load(u32 **buf, int reg, int off)
 	}
 }
 
-static void __cpuinit build_copy_store(u32 **buf, int reg, int off)
+static void build_copy_store(u32 **buf, int reg, int off)
 {
 	if (cpu_has_64bit_gp_regs) {
 		uasm_i_sd(buf, reg, off, A0);
@@ -424,7 +424,7 @@ static inline void build_copy_store_pref(u32 **buf, int off)
 	}
 }
 
-void __cpuinit build_copy_page(void)
+void build_copy_page(void)
 {
 	int off;
 	u32 *buf = (u32 *)&copy_page_array;

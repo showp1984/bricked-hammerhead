@@ -140,7 +140,7 @@ atomic_t init_deasserted;
  * Report back to the Boot Processor.
  * Running on AP.
  */
-static void __cpuinit smp_callin(void)
+static void smp_callin(void)
 {
 	int cpuid, phys_id;
 	unsigned long timeout;
@@ -243,7 +243,7 @@ static void __cpuinit smp_callin(void)
 /*
  * Activate a secondary processor.
  */
-notrace static void __cpuinit start_secondary(void *unused)
+notrace static void start_secondary(void *unused)
 {
 	/*
 	 * Don't put *anything* before cpu_init(), SMP booting is too
@@ -305,7 +305,7 @@ notrace static void __cpuinit start_secondary(void *unused)
  * a given CPU
  */
 
-void __cpuinit smp_store_cpu_info(int id)
+void smp_store_cpu_info(int id)
 {
 	struct cpuinfo_x86 *c = &cpu_data(id);
 
@@ -315,7 +315,7 @@ void __cpuinit smp_store_cpu_info(int id)
 		identify_secondary_cpu(c);
 }
 
-static void __cpuinit link_thread_siblings(int cpu1, int cpu2)
+static void link_thread_siblings(int cpu1, int cpu2)
 {
 	cpumask_set_cpu(cpu1, cpu_sibling_mask(cpu2));
 	cpumask_set_cpu(cpu2, cpu_sibling_mask(cpu1));
@@ -326,7 +326,7 @@ static void __cpuinit link_thread_siblings(int cpu1, int cpu2)
 }
 
 
-void __cpuinit set_cpu_sibling_map(int cpu)
+void set_cpu_sibling_map(int cpu)
 {
 	int i;
 	struct cpuinfo_x86 *c = &cpu_data(cpu);
@@ -625,7 +625,7 @@ struct create_idle {
 	int cpu;
 };
 
-static void __cpuinit do_fork_idle(struct work_struct *work)
+static void do_fork_idle(struct work_struct *work)
 {
 	struct create_idle *c_idle =
 		container_of(work, struct create_idle, work);
@@ -635,7 +635,7 @@ static void __cpuinit do_fork_idle(struct work_struct *work)
 }
 
 /* reduce the number of lines printed when booting a large cpu count system */
-static void __cpuinit announce_cpu(int cpu, int apicid)
+static void announce_cpu(int cpu, int apicid)
 {
 	static int current_node = -1;
 	int node = early_cpu_to_node(cpu);
@@ -660,7 +660,7 @@ static void __cpuinit announce_cpu(int cpu, int apicid)
  * Returns zero if CPU booted OK, else error code from
  * ->wakeup_secondary_cpu.
  */
-static int __cpuinit do_boot_cpu(int apicid, int cpu)
+static int do_boot_cpu(int apicid, int cpu)
 {
 	unsigned long boot_error = 0;
 	unsigned long start_ip;
@@ -818,7 +818,7 @@ do_rest:
 	return boot_error;
 }
 
-int __cpuinit native_cpu_up(unsigned int cpu)
+int native_cpu_up(unsigned int cpu)
 {
 	int apicid = apic->cpu_present_to_apicid(cpu);
 	unsigned long flags;

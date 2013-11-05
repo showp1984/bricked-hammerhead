@@ -832,7 +832,7 @@ static int cpu_has_active_perf(int cpu)
  * UNKNOWN at reset, the PMU must be explicitly reset to avoid reading
  * junk values out of them.
  */
-static int __cpuinit pmu_cpu_notify(struct notifier_block *b,
+static int pmu_cpu_notify(struct notifier_block *b,
 					unsigned long action, void *hcpu)
 {
 	int irq;
