@@ -484,7 +484,8 @@ static void sierra_net_kevent(struct work_struct *work)
 			netdev_err(dev->net,
 				"usb_control_msg failed, status %d\n", len);
 		} else {
-			struct hip_hdr	hh;
+			struct hip_hdr hh;
+			hh.extmsgid.word = 0;
 
 			dev_dbg(&dev->udev->dev, "%s: Received status message,"
 				" %04x bytes", __func__, len);
@@ -845,8 +846,9 @@ static struct sk_buff *sierra_net_skb_clone(struct usbnet *dev,
 static int sierra_net_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 {
 	int err;
-	struct hip_hdr  hh;
+	struct hip_hdr hh;
 	struct sk_buff *new_skb;
+	hh.extmsgid.word = 0;
 
 	dev_dbg(&dev->udev->dev, "%s", __func__);
 
