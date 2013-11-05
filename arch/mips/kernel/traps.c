@@ -1506,7 +1506,7 @@ int cp0_compare_irq_shift;
 int cp0_perfcount_irq;
 EXPORT_SYMBOL_GPL(cp0_perfcount_irq);
 
-static int __cpuinitdata noulri;
+static int noulri;
 
 static int __init ulri_disable(char *s)
 {
@@ -1638,7 +1638,7 @@ void __init set_handler(unsigned long offset, void *addr, unsigned long size)
 	local_flush_icache_range(ebase + offset, ebase + offset + size);
 }
 
-static char panic_null_cerr[] __cpuinitdata =
+static char panic_null_cerr[] =
 	"Trying to set NULL cache error exception handler";
 
 /*

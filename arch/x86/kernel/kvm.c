@@ -395,7 +395,7 @@ static int kvm_cpu_notify(struct notifier_block *self,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata kvm_cpu_notifier = {
+static struct notifier_block kvm_cpu_notifier = {
         .notifier_call  = kvm_cpu_notify,
 };
 #endif

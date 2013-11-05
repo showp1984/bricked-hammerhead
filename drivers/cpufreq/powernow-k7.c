@@ -617,7 +617,7 @@ static int acer_cpufreq_pst(const struct dmi_system_id *d)
  * A BIOS update is all that can save them.
  * Mention this, and disable cpufreq.
  */
-static struct dmi_system_id __cpuinitdata powernow_dmi_table[] = {
+static struct dmi_system_id powernow_dmi_table[] = {
 	{
 		.callback = acer_cpufreq_pst,
 		.ident = "Acer Aspire",

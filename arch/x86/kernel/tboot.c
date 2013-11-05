@@ -332,7 +332,7 @@ static int tboot_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block tboot_cpu_notifier __cpuinitdata =
+static struct notifier_block tboot_cpu_notifier =
 {
 	.notifier_call = tboot_cpu_callback,
 };

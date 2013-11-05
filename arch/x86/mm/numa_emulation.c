@@ -10,7 +10,7 @@
 
 #include "numa_internal.h"
 
-static int emu_nid_to_phys[MAX_NUMNODES] __cpuinitdata;
+static int emu_nid_to_phys[MAX_NUMNODES];
 static char *emu_cmdline __initdata;
 
 void __init numa_emu_cmdline(char *str)

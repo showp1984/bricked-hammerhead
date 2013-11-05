@@ -59,7 +59,7 @@ static void do_cyrix_devid(unsigned char *dir0, unsigned char *dir1)
  * Actually since bugs.h doesn't even reference this perhaps someone should
  * fix the documentation ???
  */
-static unsigned char Cx86_dir0_msb __cpuinitdata = 0;
+static unsigned char Cx86_dir0_msb = 0;
 
 static const char __cpuinitconst Cx86_model[][9] = {
 	"Cx486", "Cx486", "5x86 ", "6x86", "MediaGX ", "6x86MX ",
@@ -75,7 +75,7 @@ static const char __cpuinitconst Cx486S_name[][4] = {
 static const char __cpuinitconst Cx486D_name[][4] = {
 	"DX", "DX2", "?", "?", "?", "DX4"
 };
-static char Cx86_cb[] __cpuinitdata = "?.5x Core/Bus Clock";
+static char Cx86_cb[] = "?.5x Core/Bus Clock";
 static const char __cpuinitconst cyrix_model_mult1[] = "12??43";
 static const char __cpuinitconst cyrix_model_mult2[] = "12233445";
 

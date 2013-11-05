@@ -1036,7 +1036,7 @@ static int acpuclk_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata acpuclk_cpu_notifier = {
+static struct notifier_block acpuclk_cpu_notifier = {
 	.notifier_call = acpuclk_cpu_callback,
 };
 

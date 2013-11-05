@@ -1052,7 +1052,7 @@ static int smp_cpu_notify(struct notifier_block *self,
 	return notifier_from_errno(err);
 }
 
-static struct notifier_block __cpuinitdata smp_cpu_nb = {
+static struct notifier_block smp_cpu_nb = {
 	.notifier_call = smp_cpu_notify,
 };
 

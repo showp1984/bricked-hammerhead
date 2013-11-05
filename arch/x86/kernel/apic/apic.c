@@ -56,7 +56,7 @@
 
 unsigned int num_processors;
 
-unsigned disabled_cpus __cpuinitdata;
+unsigned disabled_cpus;
 
 /* Processor that is doing the boot up */
 unsigned int boot_cpu_physical_apicid = -1U;
@@ -2331,8 +2331,8 @@ static int apic_cluster_num(void)
 	return clusters;
 }
 
-static int __cpuinitdata multi_checked;
-static int __cpuinitdata multi;
+static int multi_checked;
+static int multi;
 
 static int set_multi(const struct dmi_system_id *d)
 {

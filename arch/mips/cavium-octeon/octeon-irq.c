@@ -847,7 +847,7 @@ static void (*octeon_irq_ip2)(void);
 static void (*octeon_irq_ip3)(void);
 static void (*octeon_irq_ip4)(void);
 
-void __cpuinitdata (*octeon_irq_setup_secondary)(void);
+void (*octeon_irq_setup_secondary)(void);
 
 static void octeon_irq_percpu_enable(void)
 {

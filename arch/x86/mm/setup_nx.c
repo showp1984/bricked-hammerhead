@@ -5,7 +5,7 @@
 #include <asm/pgtable.h>
 #include <asm/proto.h>
 
-static int disable_nx __cpuinitdata;
+static int disable_nx;
 
 /*
  * noexec = on|off

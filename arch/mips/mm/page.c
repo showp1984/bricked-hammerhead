@@ -65,8 +65,8 @@ UASM_L_LA(_copy_pref_both)
 UASM_L_LA(_copy_pref_store)
 
 /* We need one branch and therefore one relocation per target label. */
-static struct uasm_label __cpuinitdata labels[5];
-static struct uasm_reloc __cpuinitdata relocs[5];
+static struct uasm_label labels[5];
+static struct uasm_reloc relocs[5];
 
 #define cpu_is_r4600_v1_x()	((read_c0_prid() & 0xfffffff0) == 0x00002010)
 #define cpu_is_r4600_v2_x()	((read_c0_prid() & 0xfffffff0) == 0x00002020)
@@ -110,20 +110,20 @@ void copy_page(void *to, void *from) __attribute__((alias("copy_page_array")));
 EXPORT_SYMBOL(copy_page);
 
 
-static int pref_bias_clear_store __cpuinitdata;
-static int pref_bias_copy_load __cpuinitdata;
-static int pref_bias_copy_store __cpuinitdata;
+static int pref_bias_clear_store;
+static int pref_bias_copy_load;
+static int pref_bias_copy_store;
 
-static u32 pref_src_mode __cpuinitdata;
-static u32 pref_dst_mode __cpuinitdata;
+static u32 pref_src_mode;
+static u32 pref_dst_mode;
 
-static int clear_word_size __cpuinitdata;
-static int copy_word_size __cpuinitdata;
+static int clear_word_size;
+static int copy_word_size;
 
-static int half_clear_loop_size __cpuinitdata;
-static int half_copy_loop_size __cpuinitdata;
+static int half_clear_loop_size;
+static int half_copy_loop_size;
 
-static int cache_line_size __cpuinitdata;
+static int cache_line_size;
 #define cache_line_mask() (cache_line_size - 1)
 
 static inline void __cpuinit

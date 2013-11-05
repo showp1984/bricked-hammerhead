@@ -1197,7 +1197,7 @@ static int vmstat_cpuup_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata vmstat_notifier =
+static struct notifier_block vmstat_notifier =
 	{ &vmstat_cpuup_callback, NULL, 0 };
 #endif
 

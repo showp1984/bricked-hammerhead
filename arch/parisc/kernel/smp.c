@@ -62,9 +62,9 @@ static int smp_debug_lvl = 0;
 volatile struct task_struct *smp_init_current_idle_task;
 
 /* track which CPU is booting */
-static volatile int cpu_now_booting __cpuinitdata;
+static volatile int cpu_now_booting;
 
-static int parisc_max_cpus __cpuinitdata = 1;
+static int parisc_max_cpus = 1;
 
 static DEFINE_PER_CPU(spinlock_t, ipi_lock);
 

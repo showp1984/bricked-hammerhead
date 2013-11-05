@@ -226,19 +226,19 @@ static inline void dump_handler(const u32 *handler, int count)
  * We deliberately chose a buffer size of 128, so we won't scribble
  * over anything important on overflow before we panic.
  */
-static u32 tlb_handler[128] __cpuinitdata;
+static u32 tlb_handler[128];
 
 /* simply assume worst case size for labels and relocs */
-static struct uasm_label labels[128] __cpuinitdata;
-static struct uasm_reloc relocs[128] __cpuinitdata;
+static struct uasm_label labels[128];
+static struct uasm_reloc relocs[128];
 
 #ifdef CONFIG_64BIT
-static int check_for_high_segbits __cpuinitdata;
+static int check_for_high_segbits;
 #endif
 
-static int check_for_high_segbits __cpuinitdata;
+static int check_for_high_segbits;
 
-static unsigned int kscratch_used_mask __cpuinitdata;
+static unsigned int kscratch_used_mask;
 
 static int allocate_kscratch(void)
 {
@@ -257,8 +257,8 @@ static int allocate_kscratch(void)
 	return r;
 }
 
-static int scratch_reg __cpuinitdata;
-static int pgd_reg __cpuinitdata;
+static int scratch_reg;
+static int pgd_reg;
 enum vmalloc64_mode {not_refill, refill_scratch, refill_noscratch};
 
 static struct work_registers build_get_work_registers(u32 **p)
@@ -387,7 +387,7 @@ static void build_r3000_tlb_refill_handler(void)
  * other one.To keep things simple, we first assume linear space,
  * then we relocate it to the final handler layout as needed.
  */
-static u32 final_handler[64] __cpuinitdata;
+static u32 final_handler[64];
 
 /*
  * Hazards

@@ -884,7 +884,7 @@ static int comp_pool_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block comp_pool_callback_nb __cpuinitdata = {
+static struct notifier_block comp_pool_callback_nb = {
 	.notifier_call	= comp_pool_callback,
 	.priority	= 0,
 };

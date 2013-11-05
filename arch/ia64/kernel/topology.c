@@ -135,7 +135,7 @@ struct cpu_cache_info {
 	struct kobject kobj;
 };
 
-static struct cpu_cache_info	all_cpu_cache_info[NR_CPUS] __cpuinitdata;
+static struct cpu_cache_info	all_cpu_cache_info[NR_CPUS];
 #define LEAF_KOBJECT_PTR(x,y)    (&all_cpu_cache_info[x].cache_leaves[y])
 
 #ifdef CONFIG_SMP
@@ -445,7 +445,7 @@ static int cache_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata cache_cpu_notifier =
+static struct notifier_block cache_cpu_notifier =
 {
 	.notifier_call = cache_cpu_callback
 };

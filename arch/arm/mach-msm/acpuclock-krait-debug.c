@@ -359,7 +359,7 @@ static int debug_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata debug_cpu_notifier = {
+static struct notifier_block debug_cpu_notifier = {
 	.notifier_call = debug_cpu_callback,
 };
 

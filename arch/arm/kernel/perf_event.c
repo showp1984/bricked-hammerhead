@@ -902,7 +902,7 @@ static void armpmu_update_counters(void)
 	}
 }
 
-static struct notifier_block __cpuinitdata pmu_cpu_notifier = {
+static struct notifier_block pmu_cpu_notifier = {
 	.notifier_call = pmu_cpu_notify,
 };
 
