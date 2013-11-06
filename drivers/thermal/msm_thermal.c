@@ -26,6 +26,9 @@
 #include <linux/of.h>
 #include <linux/hrtimer.h>
 #include <mach/cpufreq.h>
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+#include "../../arch/arm/mach-msm/msm_mpdecision.h"
+#endif
 
 static DEFINE_MUTEX(emergency_shutdown_mutex);
 
@@ -101,6 +104,28 @@ static int update_cpu_max_freq(struct cpufreq_policy *cpu_policy,
     return ret;
 }
 
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+static int update_cpu_min_freq(struct cpufreq_policy *cpu_policy,
+                               int cpu, int new_freq)
+{
+    int ret = 0;
+
+    if (!cpu_policy)
+        return -EINVAL;
+
+    cpufreq_verify_within_limits(cpu_policy, new_freq, cpu_policy->max);
+    cpu_policy->user_policy.min = new_freq;
+
+    ret = cpufreq_update_policy(cpu);
+    if (!ret) {
+        pr_debug("msm_thermal: Setting CPU%d min frequency to %d\n",
+            cpu, new_freq);
+    }
+    return ret;
+}
+
+DECLARE_PER_CPU(struct msm_mpdec_cpudata_t, msm_mpdec_cpudata);
+#endif
 static void check_temp(struct work_struct *work)
 {
     struct cpufreq_policy *cpu_policy = NULL;
@@ -182,6 +207,17 @@ static void check_temp(struct work_struct *work)
                 pr_warn("msm_thermal: Low thermal throttle ended! temp:%lu by:%u\n",
                         temp, msm_thermal_info.sensor_id);
             }
+
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+            if (cpu_online(cpu)) {
+                if (mutex_trylock(&per_cpu(msm_mpdec_cpudata, cpu).unboost_mutex)) {
+                    per_cpu(msm_mpdec_cpudata, cpu).is_boosted = false;
+                    update_cpu_min_freq(cpu_policy, cpu, per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq);
+                    mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).unboost_mutex);
+                }
+            }
+#endif
+
         //mid trip point
         } else if ((temp >= msm_thermal_info.allowed_mid_high) &&
                (temp < msm_thermal_info.allowed_max_high) &&
