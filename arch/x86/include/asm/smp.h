@@ -180,7 +180,7 @@ static inline int wbinvd_on_all_cpus(void)
 }
 #endif /* CONFIG_SMP */
 
-extern unsigned disabled_cpus __cpuinitdata;
+extern unsigned disabled_cpusdata;
 
 #ifdef CONFIG_X86_32_SMP
 /*

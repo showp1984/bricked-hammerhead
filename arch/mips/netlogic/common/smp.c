@@ -106,7 +106,7 @@ void nlm_early_init_secondary(int cpu)
 /*
  * Code to run on secondary just after probing the CPU
  */
-static void __cpuinit nlm_init_secondary(void)
+static void nlm_init_secondary(void)
 {
 	current_cpu_data.core = hard_smp_processor_id() / 4;
 	nlm_smp_irq_init();
@@ -232,7 +232,7 @@ unsupp:
 	return 0;
 }
 
-int __cpuinit nlm_wakeup_secondary_cpus(u32 wakeup_mask)
+int nlm_wakeup_secondary_cpus(u32 wakeup_mask)
 {
 	unsigned long reset_vec;
 	char *reset_data;

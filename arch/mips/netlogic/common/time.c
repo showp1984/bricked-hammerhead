@@ -38,7 +38,7 @@
 #include <asm/netlogic/interrupt.h>
 #include <asm/netlogic/common.h>
 
-unsigned int __cpuinit get_c0_compare_int(void)
+unsigned int get_c0_compare_int(void)
 {
 	return IRQ_TIMER;
 }

@@ -23,7 +23,7 @@
 #include <asm/iommu.h>
 #include <asm/mach_traps.h>
 
-void __cpuinit x86_init_noop(void) { }
+void x86_init_noop(void) { }
 void __init x86_init_uint_noop(unsigned int unused) { }
 void __init x86_init_pgd_noop(pgd_t *unused) { }
 int __init iommu_init_noop(void) { return 0; }
@@ -90,7 +90,7 @@ struct x86_init_ops x86_init __initdata = {
 	},
 };
 
-struct x86_cpuinit_ops x86_cpuinit __cpuinitdata = {
+struct x86_cpuinit_ops x86_cpuinit = {
 	.early_percpu_clock_init	= x86_init_noop,
 	.setup_percpu_clockev		= setup_secondary_APIC_clock,
 };

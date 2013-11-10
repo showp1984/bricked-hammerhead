@@ -47,7 +47,7 @@ static inline void show_leds(int cpuid)
 			      "i" (ASI_M_CTL));
 }
 
-void __cpuinit smp4d_callin(void)
+void smp4d_callin(void)
 {
 	int cpuid = hard_smp4d_processor_id();
 	unsigned long flags;
@@ -127,7 +127,7 @@ void __init smp4d_boot_cpus(void)
 	local_flush_cache_all();
 }
 
-int __cpuinit smp4d_boot_one_cpu(int i)
+int smp4d_boot_one_cpu(int i)
 {
 	unsigned long *entry = &sun4d_cpu_startup;
 	struct task_struct *p;
@@ -393,7 +393,7 @@ void smp4d_percpu_timer_interrupt(struct pt_regs *regs)
 	set_irq_regs(old_regs);
 }
 
-static void __cpuinit smp_setup_percpu_timer(void)
+static void smp_setup_percpu_timer(void)
 {
 	int cpu = hard_smp4d_processor_id();
 

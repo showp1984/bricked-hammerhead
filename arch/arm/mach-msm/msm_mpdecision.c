@@ -1,726 +1,1202 @@
- /* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/*
+ * arch/arm/mach-msm/msm_mpdecision.c
+ *
+ * This program features:
+ * -cpu auto-hotplug/unplug based on system load for MSM multicore cpus
+ * -single core while screen is off
+ * -extensive sysfs tuneables
+ *
+ * Copyright (c) 2012-2013, Dennis Rassmann <showp1984@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#define pr_fmt(fmt)     "mpd %s: " fmt, __func__
-
-#include <linux/cpumask.h>
-#include <linux/kernel.h>
+#include "msm_mpdecision.h"
+#ifdef CONFIG_FB
+#include <linux/lcd_notify.h>
+#elif defined CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#endif
 #include <linux/init.h>
-#include <linux/module.h>
-#include <linux/mutex.h>
-#include <linux/kthread.h>
-#include <linux/kobject.h>
-#include <linux/ktime.h>
-#include <linux/hrtimer.h>
-#include <linux/slab.h>
-#include <linux/spinlock.h>
-#include <linux/cpu.h>
-#include <linux/stringify.h>
-#include <linux/sched.h>
-#include <linux/platform_device.h>
-#include <linux/debugfs.h>
-#include <linux/cpu_pm.h>
-#include <linux/cpu.h>
 #include <linux/cpufreq.h>
-#include <linux/sched.h>
-#include <linux/rq_stats.h>
-#include <asm/atomic.h>
-#include <asm/page.h>
-#include <mach/msm_dcvs.h>
-#include <mach/msm_dcvs_scm.h>
-#define CREATE_TRACE_POINTS
-#include <trace/events/mpdcvs_trace.h>
+#include <linux/workqueue.h>
+#include <linux/completion.h>
+#include <linux/cpu.h>
+#include <linux/cpumask.h>
+#include <asm-generic/cputime.h>
+#include <linux/hrtimer.h>
+#include <linux/delay.h>
+#include <linux/export.h>
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+#include <linux/input.h>
+#include <linux/slab.h>
+#endif
+#include "acpuclock.h"
 
-#define DEFAULT_RQ_AVG_POLL_MS    (1)
-#define DEFAULT_RQ_AVG_DIVIDE    (25)
+#define DEBUG 0
 
-struct mpd_attrib {
-	struct kobj_attribute	enabled;
-	struct kobj_attribute	rq_avg_poll_ms;
-	struct kobj_attribute	iowait_threshold_pct;
+DEFINE_PER_CPU(struct msm_mpdec_cpudata_t, msm_mpdec_cpudata);
+EXPORT_PER_CPU_SYMBOL_GPL(msm_mpdec_cpudata);
 
-	struct kobj_attribute	rq_avg_divide;
-	struct kobj_attribute	em_win_size_min_us;
-	struct kobj_attribute	em_win_size_max_us;
-	struct kobj_attribute	em_max_util_pct;
-	struct kobj_attribute	mp_em_rounding_point_min;
-	struct kobj_attribute	mp_em_rounding_point_max;
-	struct kobj_attribute	online_util_pct_min;
-	struct kobj_attribute	online_util_pct_max;
-	struct kobj_attribute	slack_time_min_us;
-	struct kobj_attribute	slack_time_max_us;
-	struct kobj_attribute	hp_up_max_ms;
-	struct kobj_attribute	hp_up_ms;
-	struct kobj_attribute	hp_up_count;
-	struct kobj_attribute	hp_dw_max_ms;
-	struct kobj_attribute	hp_dw_ms;
-	struct kobj_attribute	hp_dw_count;
-	struct attribute_group	attrib_group;
+static bool mpdec_suspended = false;
+static struct notifier_block msm_mpdec_lcd_notif;
+static struct delayed_work msm_mpdec_work;
+static struct workqueue_struct *msm_mpdec_workq;
+static DEFINE_MUTEX(mpdec_msm_cpu_lock);
+static DEFINE_MUTEX(mpdec_msm_susres_lock);
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+static struct workqueue_struct *mpdec_input_wq;
+static DEFINE_PER_CPU(struct work_struct, mpdec_input_work);
+static struct workqueue_struct *msm_mpdec_revib_workq;
+static DEFINE_PER_CPU(struct delayed_work, msm_mpdec_revib_work);
+#endif
+
+static struct msm_mpdec_tuners {
+    unsigned int startdelay;
+    unsigned int delay;
+    unsigned int pause;
+    bool scroff_single_core;
+    unsigned long int idle_freq;
+    unsigned int max_cpus;
+    unsigned int min_cpus;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    bool boost_enabled;
+    unsigned int boost_time;
+    unsigned long int boost_freq[4];
+#endif
+} msm_mpdec_tuners_ins = {
+    .startdelay = MSM_MPDEC_STARTDELAY,
+    .delay = MSM_MPDEC_DELAY,
+    .pause = MSM_MPDEC_PAUSE,
+    .scroff_single_core = true,
+    .idle_freq = MSM_MPDEC_IDLE_FREQ,
+    .max_cpus = CONFIG_NR_CPUS,
+    .min_cpus = 1,
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    .boost_enabled = true,
+    .boost_time = MSM_MPDEC_BOOSTTIME,
+    .boost_freq = {
+        MSM_MPDEC_BOOSTFREQ_CPU0,
+        MSM_MPDEC_BOOSTFREQ_CPU1,
+        MSM_MPDEC_BOOSTFREQ_CPU2,
+        MSM_MPDEC_BOOSTFREQ_CPU3
+    },
+#endif
 };
 
-struct msm_mpd_scm_data {
-	enum msm_dcvs_scm_event event;
-	int			nr;
-};
+static unsigned int NwNs_Threshold[8] = {12, 0, 20, 7, 25, 10, 0, 18};
+static unsigned int TwTs_Threshold[8] = {140, 0, 140, 190, 140, 190, 0, 190};
 
-struct mpdecision {
-	uint32_t			enabled;
-	atomic_t			algo_cpu_mask;
-	uint32_t			rq_avg_poll_ms;
-	uint32_t			iowait_threshold_pct;
-	uint32_t			rq_avg_divide;
-	ktime_t				next_update;
-	uint32_t			slack_us;
-	struct msm_mpd_algo_param	mp_param;
-	struct mpd_attrib		attrib;
-	struct mutex			lock;
-	struct task_struct		*task;
-	struct task_struct		*hptask;
-	struct hrtimer			slack_timer;
-	struct msm_mpd_scm_data		data;
-	int				hpupdate;
-	wait_queue_head_t		wait_q;
-	wait_queue_head_t		wait_hpq;
-};
+extern unsigned int get_rq_info(void);
+extern unsigned long acpuclk_get_rate(int);
 
-struct hp_latency {
-	int hp_up_max_ms;
-	int hp_up_ms;
-	int hp_up_count;
-	int hp_dw_max_ms;
-	int hp_dw_ms;
-	int hp_dw_count;
-};
+unsigned int state = MSM_MPDEC_IDLE;
+bool was_paused = false;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+bool is_screen_on = true;
+static int update_cpu_min_freq(struct cpufreq_policy *cpu_policy,
+                               int cpu, int new_freq);
+static void unboost_cpu(int cpu);
+#endif
+static cputime64_t mpdec_paused_until = 0;
 
-static DEFINE_PER_CPU(struct hrtimer, rq_avg_poll_timer);
-static DEFINE_SPINLOCK(rq_avg_lock);
-
-enum {
-	MSM_MPD_DEBUG_NOTIFIER = BIT(0),
-	MSM_MPD_CORE_STATUS = BIT(1),
-	MSM_MPD_SLACK_TIMER = BIT(2),
-};
-
-enum {
-	HPUPDATE_WAITING = 0, /* we are waiting for cpumask update */
-	HPUPDATE_SCHEDULED = 1, /* we are in the process of hotplugging */
-	HPUPDATE_IN_PROGRESS = 2, /* we are in the process of hotplugging */
-};
-
-static int msm_mpd_enabled = 1;
-module_param_named(enabled, msm_mpd_enabled, int, S_IRUGO | S_IWUSR | S_IWGRP);
-
-static struct dentry *debugfs_base;
-static struct mpdecision msm_mpd;
-
-static struct hp_latency hp_latencies;
-
-static unsigned long last_nr;
-static int num_present_hundreds;
-static ktime_t last_down_time;
-
-static bool ok_to_update_tz(int nr, int last_nr)
-{
-	/*
-	 * Exclude unnecessary TZ reports if run queue haven't changed much from
-	 * the last reported value. The divison by rq_avg_divide is to
-	 * filter out small changes in the run queue average which won't cause
-	 * a online cpu mask change. Also if the cpu online count does not match
-	 * the count requested by TZ and we are not in the process of bringing
-	 * cpus online as indicated by a HPUPDATE_IN_PROGRESS in msm_mpd.hpdata
-	 */
-	return
-	(((nr / msm_mpd.rq_avg_divide)
-				!= (last_nr / msm_mpd.rq_avg_divide))
-	|| ((hweight32(atomic_read(&msm_mpd.algo_cpu_mask))
-				!= num_online_cpus())
-		&& (msm_mpd.hpupdate != HPUPDATE_IN_PROGRESS)));
+static unsigned long get_rate(int cpu) {
+    return acpuclk_get_rate(cpu);
 }
 
-static enum hrtimer_restart msm_mpd_rq_avg_poll_timer(struct hrtimer *timer)
-{
-	int nr, nr_iowait;
-	ktime_t curr_time = ktime_get();
-	unsigned long flags;
-	int cpu = smp_processor_id();
-	enum hrtimer_restart restart = HRTIMER_RESTART;
+static int get_slowest_cpu(void) {
+    int i, cpu = 0;
+    unsigned long rate, slow_rate = 0;
 
-	spin_lock_irqsave(&rq_avg_lock, flags);
-	/* If running on the wrong cpu, don't restart */
-	if (&per_cpu(rq_avg_poll_timer, cpu) != timer)
-		restart = HRTIMER_NORESTART;
+    for (i = 1; i < CONFIG_NR_CPUS; i++) {
+        if (!cpu_online(i))
+            continue;
+        rate = get_rate(i);
+        if (slow_rate == 0) {
+            slow_rate = rate;
+        }
+        if ((rate <= slow_rate) && (slow_rate != 0)) {
+            cpu = i;
+            slow_rate = rate;
+        }
+    }
 
-	if (ktime_to_ns(ktime_sub(curr_time, msm_mpd.next_update)) < 0)
-		goto out;
+    return cpu;
+}
 
-	msm_mpd.next_update = ktime_add_ns(curr_time,
-			(msm_mpd.rq_avg_poll_ms * NSEC_PER_MSEC));
+static unsigned long get_slowest_cpu_rate(void) {
+    int i = 0;
+    unsigned long rate, slow_rate = 0;
 
-	sched_get_nr_running_avg(&nr, &nr_iowait);
+    for (i = 0; i < CONFIG_NR_CPUS; i++) {
+        if (!cpu_online(i))
+            continue;
+        rate = get_rate(i);
+        if ((rate < slow_rate) && (slow_rate != 0)) {
+            slow_rate = rate;
+        }
+        if (slow_rate == 0) {
+            slow_rate = rate;
+        }
+    }
 
-	if ((nr_iowait >= msm_mpd.iowait_threshold_pct) && (nr < last_nr))
-		nr = last_nr;
+    return slow_rate;
+}
 
-	if (nr > num_present_hundreds)
-		nr = num_present_hundreds;
+static void mpdec_cpu_up(int cpu) {
+    if (!cpu_online(cpu)) {
+        mutex_lock(&per_cpu(msm_mpdec_cpudata, cpu).hotplug_mutex);
+        cpu_up(cpu);
+        per_cpu(msm_mpdec_cpudata, cpu).on_time = ktime_to_ms(ktime_get());
+        per_cpu(msm_mpdec_cpudata, cpu).online = true;
+        per_cpu(msm_mpdec_cpudata, cpu).times_cpu_hotplugged += 1;
+        pr_info(MPDEC_TAG"CPU[%d] off->on | Mask=[%d%d%d%d]\n",
+                cpu, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
+        mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).hotplug_mutex);
+    }
+}
+EXPORT_SYMBOL_GPL(mpdec_cpu_up);
 
-	trace_msm_mp_runq("nr_running", nr);
+static void mpdec_cpu_down(int cpu) {
+    cputime64_t on_time = 0;
+    if (cpu_online(cpu)) {
+        mutex_lock(&per_cpu(msm_mpdec_cpudata, cpu).hotplug_mutex);
+        cpu_down(cpu);
+        on_time = (ktime_to_ms(ktime_get()) - per_cpu(msm_mpdec_cpudata, cpu).on_time);
+        per_cpu(msm_mpdec_cpudata, cpu).online = false;
+        per_cpu(msm_mpdec_cpudata, cpu).on_time_total += on_time;
+        per_cpu(msm_mpdec_cpudata, cpu).times_cpu_unplugged += 1;
+        pr_info(MPDEC_TAG"CPU[%d] on->off | Mask=[%d%d%d%d] | time online: %llu\n",
+                cpu, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3), on_time);
+        mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).hotplug_mutex);
+    }
+}
+EXPORT_SYMBOL_GPL(mpdec_cpu_down);
 
-	if (ok_to_update_tz(nr, last_nr)) {
-		hrtimer_try_to_cancel(&msm_mpd.slack_timer);
-		msm_mpd.data.nr = nr;
-		msm_mpd.data.event = MSM_DCVS_SCM_RUNQ_UPDATE;
-		wake_up(&msm_mpd.wait_q);
-		last_nr = nr;
-	}
+static int mp_decision(void) {
+    static bool first_call = true;
+    int new_state = MSM_MPDEC_IDLE;
+    int nr_cpu_online;
+    int index;
+    unsigned int rq_depth;
+    static cputime64_t total_time = 0;
+    static cputime64_t last_time;
+    cputime64_t current_time;
+    cputime64_t this_time = 0;
+
+    if (state == MSM_MPDEC_DISABLED)
+        return MSM_MPDEC_DISABLED;
+
+    current_time = ktime_to_ms(ktime_get());
+    if (current_time <= msm_mpdec_tuners_ins.startdelay)
+        return MSM_MPDEC_IDLE;
+
+    if (first_call) {
+        first_call = false;
+    } else {
+        this_time = current_time - last_time;
+    }
+    total_time += this_time;
+
+    rq_depth = get_rq_info();
+    nr_cpu_online = num_online_cpus();
+
+    if (nr_cpu_online) {
+        index = (nr_cpu_online - 1) * 2;
+        if ((nr_cpu_online < CONFIG_NR_CPUS) && (rq_depth >= NwNs_Threshold[index])) {
+            if ((total_time >= TwTs_Threshold[index]) &&
+                (nr_cpu_online < msm_mpdec_tuners_ins.max_cpus)) {
+                new_state = MSM_MPDEC_UP;
+                if (get_slowest_cpu_rate() <=  msm_mpdec_tuners_ins.idle_freq)
+                    new_state = MSM_MPDEC_IDLE;
+            }
+        } else if ((nr_cpu_online > 1) && (rq_depth <= NwNs_Threshold[index+1])) {
+            if ((total_time >= TwTs_Threshold[index+1]) &&
+                (nr_cpu_online > msm_mpdec_tuners_ins.min_cpus)) {
+                new_state = MSM_MPDEC_DOWN;
+                if (get_slowest_cpu_rate() > msm_mpdec_tuners_ins.idle_freq)
+                    new_state = MSM_MPDEC_IDLE;
+            }
+        } else {
+            new_state = MSM_MPDEC_IDLE;
+            total_time = 0;
+        }
+    } else {
+        total_time = 0;
+    }
+
+    if (new_state != MSM_MPDEC_IDLE) {
+        total_time = 0;
+    }
+
+    last_time = ktime_to_ms(ktime_get());
+#if DEBUG
+    pr_info(MPDEC_TAG"[DEBUG] rq: %u, new_state: %i | Mask=[%d%d%d%d]\n",
+            rq_depth, new_state, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
+#endif
+    return new_state;
+}
+
+static void msm_mpdec_work_thread(struct work_struct *work) {
+    unsigned int cpu = nr_cpu_ids;
+
+    if (ktime_to_ms(ktime_get()) <= msm_mpdec_tuners_ins.startdelay)
+            goto out;
+
+    /* Check if we are paused */
+    if (mpdec_paused_until >= ktime_to_ms(ktime_get()))
+            goto out;
+
+    if (mpdec_suspended == true)
+        goto out;
+
+    if (!mutex_trylock(&mpdec_msm_cpu_lock))
+        goto out;
+
+    /* if sth messed with the cpus, update the check vars so we can proceed */
+    if (was_paused) {
+        for_each_possible_cpu(cpu) {
+            if (cpu_online(cpu))
+                per_cpu(msm_mpdec_cpudata, cpu).online = true;
+            else if (!cpu_online(cpu))
+                per_cpu(msm_mpdec_cpudata, cpu).online = false;
+        }
+        was_paused = false;
+    }
+
+    state = mp_decision();
+    switch (state) {
+    case MSM_MPDEC_DISABLED:
+    case MSM_MPDEC_IDLE:
+        break;
+    case MSM_MPDEC_DOWN:
+        cpu = get_slowest_cpu();
+        if (cpu < nr_cpu_ids) {
+            if ((per_cpu(msm_mpdec_cpudata, cpu).online == true) && (cpu_online(cpu))) {
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+                unboost_cpu(cpu);
+#endif
+                mpdec_cpu_down(cpu);
+            } else if (per_cpu(msm_mpdec_cpudata, cpu).online != cpu_online(cpu)) {
+                pr_info(MPDEC_TAG"CPU[%d] was controlled outside of mpdecision! | pausing [%d]ms\n",
+                        cpu, msm_mpdec_tuners_ins.pause);
+                mpdec_paused_until = ktime_to_ms(ktime_get()) + msm_mpdec_tuners_ins.pause;
+                was_paused = true;
+            }
+        }
+        break;
+    case MSM_MPDEC_UP:
+        cpu = cpumask_next_zero(0, cpu_online_mask);
+        if (cpu < nr_cpu_ids) {
+            if ((per_cpu(msm_mpdec_cpudata, cpu).online == false) && (!cpu_online(cpu))) {
+                mpdec_cpu_up(cpu);
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+                unboost_cpu(cpu);
+#endif
+            } else if (per_cpu(msm_mpdec_cpudata, cpu).online != cpu_online(cpu)) {
+                pr_info(MPDEC_TAG"CPU[%d] was controlled outside of mpdecision! | pausing [%d]ms\n",
+                        cpu, msm_mpdec_tuners_ins.pause);
+                mpdec_paused_until = ktime_to_ms(ktime_get()) + msm_mpdec_tuners_ins.pause;
+                was_paused = true;
+            }
+        }
+        break;
+    default:
+        pr_err(MPDEC_TAG"%s: invalid mpdec hotplug state %d\n",
+               __func__, state);
+    }
+    mutex_unlock(&mpdec_msm_cpu_lock);
 
 out:
-	hrtimer_set_expires(timer, msm_mpd.next_update);
-	spin_unlock_irqrestore(&rq_avg_lock, flags);
-	/* set next expiration */
-	return restart;
+    if (state != MSM_MPDEC_DISABLED)
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
+                           msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
+    return;
 }
 
-static void bring_up_cpu(int cpu)
-{
-	int cpu_action_time_ms;
-	int time_taken_ms;
-	int ret, ret1, ret2;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+static int update_cpu_min_freq(struct cpufreq_policy *cpu_policy,
+                               int cpu, int new_freq) {
+    int ret = 0;
 
-	cpu_action_time_ms = ktime_to_ms(ktime_get());
-	ret = cpu_up(cpu);
-	if (ret) {
-		pr_debug("Error %d online core %d\n", ret, cpu);
-	} else {
-		time_taken_ms = ktime_to_ms(ktime_get()) - cpu_action_time_ms;
-		if (time_taken_ms > hp_latencies.hp_up_max_ms)
-			hp_latencies.hp_up_max_ms = time_taken_ms;
-		hp_latencies.hp_up_ms += time_taken_ms;
-		hp_latencies.hp_up_count++;
-		ret = msm_dcvs_scm_event(
-				CPU_OFFSET + cpu,
-				MSM_DCVS_SCM_CORE_ONLINE,
-				cpufreq_get(cpu),
-				(uint32_t) time_taken_ms * USEC_PER_MSEC,
-				&ret1, &ret2);
-		if (ret)
-			pr_err("Error sending hotplug scm event err=%d\n", ret);
-	}
+    if (!cpu_policy)
+        return -EINVAL;
+
+    cpufreq_verify_within_limits(cpu_policy, new_freq, cpu_policy->max);
+    cpu_policy->user_policy.min = new_freq;
+
+    ret = cpufreq_update_policy(cpu);
+    if (!ret) {
+        pr_debug(MPDEC_TAG"Touch event! Setting CPU%d min frequency to %d\n",
+            cpu, new_freq);
+    }
+    return ret;
 }
 
-static void bring_down_cpu(int cpu)
-{
-	int cpu_action_time_ms;
-	int time_taken_ms;
-	int ret, ret1, ret2;
+static void unboost_cpu(int cpu) {
+    struct cpufreq_policy *cpu_policy = NULL;
 
-	BUG_ON(cpu == 0);
-	cpu_action_time_ms = ktime_to_ms(ktime_get());
-	ret = cpu_down(cpu);
-	if (ret) {
-		pr_debug("Error %d offline" "core %d\n", ret, cpu);
-	} else {
-		time_taken_ms = ktime_to_ms(ktime_get()) - cpu_action_time_ms;
-		if (time_taken_ms > hp_latencies.hp_dw_max_ms)
-			hp_latencies.hp_dw_max_ms = time_taken_ms;
-		hp_latencies.hp_dw_ms += time_taken_ms;
-		hp_latencies.hp_dw_count++;
-		ret = msm_dcvs_scm_event(
-				CPU_OFFSET + cpu,
-				MSM_DCVS_SCM_CORE_OFFLINE,
-				(uint32_t) time_taken_ms * USEC_PER_MSEC,
-				0,
-				&ret1, &ret2);
-		if (ret)
-			pr_err("Error sending hotplug scm event err=%d\n", ret);
-	}
+    if (cpu_online(cpu)) {
+        if (per_cpu(msm_mpdec_cpudata, cpu).is_boosted) {
+            if (mutex_trylock(&per_cpu(msm_mpdec_cpudata, cpu).unboost_mutex)) {
+                cpu_policy = cpufreq_cpu_get(cpu);
+                if (!cpu_policy) {
+                    pr_debug(MPDEC_TAG"NULL policy on cpu %d\n", cpu);
+                    return;
+                }
+#if DEBUG
+                pr_info(MPDEC_TAG"un boosted cpu%i to %lu", cpu, per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq);
+#endif
+                per_cpu(msm_mpdec_cpudata, cpu).is_boosted = false;
+                per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = false;
+                if ((cpu_policy->min != per_cpu(msm_mpdec_cpudata, cpu).boost_freq) &&
+                    (cpu_policy->min != per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq)) {
+                    pr_info(MPDEC_TAG"cpu%u min was changed while boosted (%lu->%u), using new min",
+                            cpu, per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq, cpu_policy->min);
+                    per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq = cpu_policy->min;
+                }
+                update_cpu_min_freq(cpu_policy, cpu, per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq);
+                cpufreq_cpu_put(cpu_policy);
+                mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).unboost_mutex);
+            }
+        }
+    }
+
+    return;
 }
 
-static int __ref msm_mpd_update_scm(enum msm_dcvs_scm_event event, int nr)
-{
-	int ret = 0;
-	uint32_t req_cpu_mask = 0;
-	uint32_t slack_us = 0;
-	uint32_t param0 = 0;
+static void msm_mpdec_revib_work_thread(struct work_struct *work) {
+    int cpu = smp_processor_id();
 
-	if (event == MSM_DCVS_SCM_RUNQ_UPDATE)
-		param0 = nr;
-
-	ret = msm_dcvs_scm_event(0, event, param0, 0,
-				 &req_cpu_mask, &slack_us);
-
-	if (ret) {
-		pr_err("Error (%d) sending event %d, param %d\n", ret, event,
-				param0);
-		return ret;
-	}
-
-	trace_msm_mp_cpusonline("cpu_online_mp", req_cpu_mask);
-	trace_msm_mp_slacktime("slack_time_mp", slack_us);
-	msm_mpd.slack_us = slack_us;
-	atomic_set(&msm_mpd.algo_cpu_mask, req_cpu_mask);
-	msm_mpd.hpupdate = HPUPDATE_SCHEDULED;
-	wake_up(&msm_mpd.wait_hpq);
-
-	/* Start MP Decision slack timer */
-	if (slack_us) {
-		hrtimer_cancel(&msm_mpd.slack_timer);
-		ret = hrtimer_start(&msm_mpd.slack_timer,
-				ktime_set(0, slack_us * NSEC_PER_USEC),
-				HRTIMER_MODE_REL_PINNED);
-		if (ret)
-			pr_err("Failed to register slack timer (%d) %d\n",
-					slack_us, ret);
-	}
-
-	return ret;
+    if (per_cpu(msm_mpdec_cpudata, cpu).is_boosted) {
+        per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = true;
+        if (ktime_to_ms(ktime_get()) > per_cpu(msm_mpdec_cpudata, cpu).boost_until) {
+            unboost_cpu(cpu);
+        } else {
+            queue_delayed_work_on(cpu,
+                                  msm_mpdec_revib_workq,
+                                  &per_cpu(msm_mpdec_revib_work, cpu),
+                                  msecs_to_jiffies((per_cpu(msm_mpdec_cpudata, cpu).boost_until - ktime_to_ms(ktime_get()))));
+        }
+    } else {
+        per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = false;
+    }
+    return;
 }
 
-static enum hrtimer_restart msm_mpd_slack_timer(struct hrtimer *timer)
-{
-	unsigned long flags;
+static void mpdec_input_callback(struct work_struct *unused) {
+    struct cpufreq_policy *cpu_policy = NULL;
+    int cpu = smp_processor_id();
+    bool boosted = false;
 
-	trace_printk("mpd:slack_timer_fired!\n");
+    if (!per_cpu(msm_mpdec_cpudata, cpu).is_boosted) {
+        if (mutex_trylock(&per_cpu(msm_mpdec_cpudata, cpu).boost_mutex)) {
+            cpu_policy = cpufreq_cpu_get(cpu);
+            if (!cpu_policy) {
+                pr_debug(MPDEC_TAG"NULL policy on cpu %d\n", cpu);
+                return;
+            }
+            per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq = cpu_policy->min;
+            update_cpu_min_freq(cpu_policy, cpu, per_cpu(msm_mpdec_cpudata, cpu).boost_freq);
+#if DEBUG
+            pr_info(MPDEC_TAG"boosted cpu%i to %lu", cpu, per_cpu(msm_mpdec_cpudata, cpu).boost_freq);
+#endif
+            per_cpu(msm_mpdec_cpudata, cpu).is_boosted = true;
+            per_cpu(msm_mpdec_cpudata, cpu).boost_until = ktime_to_ms(ktime_get()) + MSM_MPDEC_BOOSTTIME;
+            boosted = true;
+            cpufreq_cpu_put(cpu_policy);
+            mutex_unlock(&per_cpu(msm_mpdec_cpudata, cpu).boost_mutex);
+        }
+    } else {
+        boosted = true;
+    }
+    if (boosted && !per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running) {
+        per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = true;
+        queue_delayed_work_on(cpu,
+                              msm_mpdec_revib_workq,
+                              &per_cpu(msm_mpdec_revib_work, cpu),
+                              msecs_to_jiffies(MSM_MPDEC_BOOSTTIME));
+    } else if (boosted && per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running) {
+        per_cpu(msm_mpdec_cpudata, cpu).boost_until = ktime_to_ms(ktime_get()) + MSM_MPDEC_BOOSTTIME;
+    }
 
-	spin_lock_irqsave(&rq_avg_lock, flags);
-	if (msm_mpd.data.event == MSM_DCVS_SCM_RUNQ_UPDATE)
-		goto out;
-
-	msm_mpd.data.nr = 0;
-	msm_mpd.data.event = MSM_DCVS_SCM_MPD_QOS_TIMER_EXPIRED;
-	wake_up(&msm_mpd.wait_q);
-out:
-	spin_unlock_irqrestore(&rq_avg_lock, flags);
-	return HRTIMER_NORESTART;
+    return;
 }
 
-static int msm_mpd_idle_notifier(struct notifier_block *self,
-				 unsigned long cmd, void *v)
-{
-	int cpu = smp_processor_id();
-	unsigned long flags;
+extern int bricked_thermal_throttled;
+static void mpdec_input_event(struct input_handle *handle, unsigned int type,
+        unsigned int code, int value) {
+    int i = 0;
 
-	switch (cmd) {
-	case CPU_PM_EXIT:
-		spin_lock_irqsave(&rq_avg_lock, flags);
-		hrtimer_start(&per_cpu(rq_avg_poll_timer, cpu),
-			      msm_mpd.next_update,
-			      HRTIMER_MODE_ABS_PINNED);
-		spin_unlock_irqrestore(&rq_avg_lock, flags);
+    if (!msm_mpdec_tuners_ins.boost_enabled)
+        return;
+
+    if (!is_screen_on)
+        return;
+
+#ifdef CONFIG_BRICKED_THERMAL
+    if (bricked_thermal_throttled > 0)
+        return;
+#endif
+
+    for_each_online_cpu(i) {
+        queue_work_on(i, mpdec_input_wq, &per_cpu(mpdec_input_work, i));
+    }
+}
+
+static int input_dev_filter(const char *input_dev_name) {
+    if (strstr(input_dev_name, "touch") ||
+        strstr(input_dev_name, "keypad")) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
+static int mpdec_input_connect(struct input_handler *handler,
+        struct input_dev *dev, const struct input_device_id *id) {
+    struct input_handle *handle;
+    int error;
+
+    if (input_dev_filter(dev->name))
+        return -ENODEV;
+
+    handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+    if (!handle)
+        return -ENOMEM;
+
+    handle->dev = dev;
+    handle->handler = handler;
+    handle->name = "mpdec";
+
+    error = input_register_handle(handle);
+    if (error)
+        goto err2;
+
+    error = input_open_device(handle);
+    if (error)
+        goto err1;
+
+    return 0;
+err1:
+    input_unregister_handle(handle);
+err2:
+    kfree(handle);
+    return error;
+}
+
+static void mpdec_input_disconnect(struct input_handle *handle) {
+    input_close_device(handle);
+    input_unregister_handle(handle);
+    kfree(handle);
+}
+
+static const struct input_device_id mpdec_ids[] = {
+    { .driver_info = 1 },
+    { },
+};
+
+static struct input_handler mpdec_input_handler = {
+    .event        = mpdec_input_event,
+    .connect      = mpdec_input_connect,
+    .disconnect   = mpdec_input_disconnect,
+    .name         = "mpdec_inputreq",
+    .id_table     = mpdec_ids,
+};
+#endif
+
+static void msm_mpdec_suspend(struct work_struct * msm_mpdec_suspend_work) {
+    int cpu = nr_cpu_ids;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    is_screen_on = false;
+#endif
+
+    if (!msm_mpdec_tuners_ins.scroff_single_core) {
+        pr_info(MPDEC_TAG"Screen -> off\n");
+        return;
+    }
+
+    /* main work thread can sleep now */
+    cancel_delayed_work_sync(&msm_mpdec_work);
+
+    for_each_possible_cpu(cpu) {
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+        unboost_cpu(cpu);
+#endif
+        if ((cpu >= 1) && (cpu_online(cpu))) {
+            mpdec_cpu_down(cpu);
+        }
+    }
+    mpdec_suspended = true;
+
+    pr_info(MPDEC_TAG"Screen -> off. Deactivated mpdecision.\n");
+}
+static DECLARE_WORK(msm_mpdec_suspend_work, msm_mpdec_suspend);
+
+static void msm_mpdec_resume(struct work_struct * msm_mpdec_suspend_work) {
+    int cpu = nr_cpu_ids;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    is_screen_on = true;
+#endif
+
+    if (!mpdec_suspended)
+        return;
+
+    mpdec_suspended = false;
+
+    if (msm_mpdec_tuners_ins.scroff_single_core) {
+        /* wake up main work thread */
+        was_paused = true;
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work, 0);
+        /* restore min/max cpus limits */
+        for (cpu=1; cpu<CONFIG_NR_CPUS; cpu++) {
+            if (cpu < msm_mpdec_tuners_ins.min_cpus) {
+                if (!cpu_online(cpu))
+                    mpdec_cpu_up(cpu);
+            } else if (cpu > msm_mpdec_tuners_ins.max_cpus) {
+                if (cpu_online(cpu))
+                    mpdec_cpu_down(cpu);
+            }
+        }
+        pr_info(MPDEC_TAG"Screen -> on. Activated mpdecision. | Mask=[%d%d%d%d]\n",
+                cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
+    } else {
+        pr_info(MPDEC_TAG"Screen -> on\n");
+    }
+}
+static DECLARE_WORK(msm_mpdec_resume_work, msm_mpdec_resume);
+
+#ifdef CONFIG_FB
+static int msm_mpdec_lcd_notifier_callback(struct notifier_block *this,
+				unsigned long event, void *data) {
+	pr_debug("%s: event = %lu\n", __func__, event);
+
+	switch (event) {
+	case LCD_EVENT_OFF_START:
+		mutex_lock(&mpdec_msm_susres_lock);
+		schedule_work(&msm_mpdec_suspend_work);
 		break;
-	case CPU_PM_ENTER:
-		hrtimer_cancel(&per_cpu(rq_avg_poll_timer, cpu));
+	case LCD_EVENT_ON_START:
+		mutex_lock(&mpdec_msm_susres_lock);
+		schedule_work(&msm_mpdec_resume_work);
+		break;
+	case LCD_EVENT_OFF_END:
+		mutex_unlock(&mpdec_msm_susres_lock);
+		break;
+	case LCD_EVENT_ON_END:
+		mutex_unlock(&mpdec_msm_susres_lock);
 		break;
 	default:
 		break;
 	}
 
-	return NOTIFY_OK;
+	return 0;
+}
+#elif defined CONFIG_HAS_EARLYSUSPEND
+static void msm_mpdec_early_suspend(struct early_suspend *h) {
+       msm_mpdec_suspend();
 }
 
-static int msm_mpd_hotplug_notifier(struct notifier_block *self,
-				    unsigned long action, void *hcpu)
+static void msm_mpdec_late_resume(struct early_suspend *h) {
+       msm_mpdec_resume();
+}
+
+static struct early_suspend msm_mpdec_early_suspend_handler = {
+    .level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
+    .suspend = msm_mpdec_early_suspend,
+    .resume = msm_mpdec_late_resume,
+};
+#endif
+
+/**************************** SYSFS START ****************************/
+struct kobject *msm_mpdec_kobject;
+
+#define show_one(file_name, object)                    \
+static ssize_t show_##file_name                        \
+(struct kobject *kobj, struct attribute *attr, char *buf)               \
+{                                    \
+    return sprintf(buf, "%u\n", msm_mpdec_tuners_ins.object);    \
+}
+
+show_one(startdelay, startdelay);
+show_one(delay, delay);
+show_one(pause, pause);
+show_one(scroff_single_core, scroff_single_core);
+show_one(min_cpus, min_cpus);
+show_one(max_cpus, max_cpus);
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+show_one(boost_enabled, boost_enabled);
+show_one(boost_time, boost_time);
+#endif
+
+#define show_one_twts(file_name, arraypos)                              \
+static ssize_t show_##file_name                                         \
+(struct kobject *kobj, struct attribute *attr, char *buf)               \
+{                                                                       \
+    return sprintf(buf, "%u\n", TwTs_Threshold[arraypos]);          \
+}
+show_one_twts(twts_threshold_0, 0);
+show_one_twts(twts_threshold_1, 1);
+show_one_twts(twts_threshold_2, 2);
+show_one_twts(twts_threshold_3, 3);
+show_one_twts(twts_threshold_4, 4);
+show_one_twts(twts_threshold_5, 5);
+show_one_twts(twts_threshold_6, 6);
+show_one_twts(twts_threshold_7, 7);
+
+#define store_one_twts(file_name, arraypos)                             \
+static ssize_t store_##file_name                                        \
+(struct kobject *a, struct attribute *b, const char *buf, size_t count) \
+{                                                                       \
+    unsigned int input;                                             \
+    int ret;                                                        \
+    ret = sscanf(buf, "%u", &input);                                \
+    if (ret != 1)                                                   \
+        return -EINVAL;                                         \
+    TwTs_Threshold[arraypos] = input;                               \
+    return count;                                                   \
+}                                                                       \
+define_one_global_rw(file_name);
+store_one_twts(twts_threshold_0, 0);
+store_one_twts(twts_threshold_1, 1);
+store_one_twts(twts_threshold_2, 2);
+store_one_twts(twts_threshold_3, 3);
+store_one_twts(twts_threshold_4, 4);
+store_one_twts(twts_threshold_5, 5);
+store_one_twts(twts_threshold_6, 6);
+store_one_twts(twts_threshold_7, 7);
+
+#define show_one_nwns(file_name, arraypos)                              \
+static ssize_t show_##file_name                                         \
+(struct kobject *kobj, struct attribute *attr, char *buf)               \
+{                                                                       \
+    return sprintf(buf, "%u\n", NwNs_Threshold[arraypos]);          \
+}
+show_one_nwns(nwns_threshold_0, 0);
+show_one_nwns(nwns_threshold_1, 1);
+show_one_nwns(nwns_threshold_2, 2);
+show_one_nwns(nwns_threshold_3, 3);
+show_one_nwns(nwns_threshold_4, 4);
+show_one_nwns(nwns_threshold_5, 5);
+show_one_nwns(nwns_threshold_6, 6);
+show_one_nwns(nwns_threshold_7, 7);
+
+#define store_one_nwns(file_name, arraypos)                             \
+static ssize_t store_##file_name                                        \
+(struct kobject *a, struct attribute *b, const char *buf, size_t count) \
+{                                                                       \
+    unsigned int input;                                             \
+    int ret;                                                        \
+    ret = sscanf(buf, "%u", &input);                                \
+    if (ret != 1)                                                   \
+        return -EINVAL;                                         \
+    NwNs_Threshold[arraypos] = input;                               \
+    return count;                                                   \
+}                                                                       \
+define_one_global_rw(file_name);
+store_one_nwns(nwns_threshold_0, 0);
+store_one_nwns(nwns_threshold_1, 1);
+store_one_nwns(nwns_threshold_2, 2);
+store_one_nwns(nwns_threshold_3, 3);
+store_one_nwns(nwns_threshold_4, 4);
+store_one_nwns(nwns_threshold_5, 5);
+store_one_nwns(nwns_threshold_6, 6);
+store_one_nwns(nwns_threshold_7, 7);
+
+static ssize_t show_idle_freq (struct kobject *kobj, struct attribute *attr,
+                                   char *buf)
 {
-	int cpu = (int)hcpu;
-	unsigned long flags;
-
-	switch (action & (~CPU_TASKS_FROZEN)) {
-	case CPU_STARTING:
-		spin_lock_irqsave(&rq_avg_lock, flags);
-		hrtimer_start(&per_cpu(rq_avg_poll_timer, cpu),
-			      msm_mpd.next_update,
-			      HRTIMER_MODE_ABS_PINNED);
-		spin_unlock_irqrestore(&rq_avg_lock, flags);
-		break;
-	default:
-		break;
-	}
-
-	return NOTIFY_OK;
+    return sprintf(buf, "%lu\n", msm_mpdec_tuners_ins.idle_freq);
 }
 
-static struct notifier_block msm_mpd_idle_nb = {
-	.notifier_call = msm_mpd_idle_notifier,
+static ssize_t show_enabled(struct kobject *a, struct attribute *b,
+                   char *buf)
+{
+    unsigned int enabled;
+    switch (state) {
+    case MSM_MPDEC_DISABLED:
+        enabled = 0;
+        break;
+    case MSM_MPDEC_IDLE:
+    case MSM_MPDEC_DOWN:
+    case MSM_MPDEC_UP:
+        enabled = 1;
+        break;
+    default:
+        enabled = 333;
+    }
+    return sprintf(buf, "%u\n", enabled);
+}
+
+static ssize_t store_startdelay(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.startdelay = input;
+
+    return count;
+}
+
+static ssize_t store_delay(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.delay = input;
+
+    return count;
+}
+
+static ssize_t store_pause(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.pause = input;
+
+    return count;
+}
+
+static ssize_t store_idle_freq(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    long unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%lu", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.idle_freq = input;
+
+    return count;
+}
+
+static ssize_t store_scroff_single_core(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+    switch (buf[0]) {
+        case '0':
+        case '1':
+            msm_mpdec_tuners_ins.scroff_single_core = input;
+            break;
+        default:
+            ret = -EINVAL;
+    }
+    return count;
+}
+
+static ssize_t store_max_cpus(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret, cpu;
+    ret = sscanf(buf, "%u", &input);
+    if ((ret != 1) || input > CONFIG_NR_CPUS || input < msm_mpdec_tuners_ins.min_cpus)
+                return -EINVAL;
+
+    msm_mpdec_tuners_ins.max_cpus = input;
+    if (num_online_cpus() > input) {
+        for (cpu=CONFIG_NR_CPUS; cpu>0; cpu--) {
+            if (num_online_cpus() <= input)
+                break;
+            if (!cpu_online(cpu))
+                continue;
+            mpdec_cpu_down(cpu);
+        }
+        pr_info(MPDEC_TAG"max_cpus set to %u. Affected CPUs were unplugged!\n", input);
+    }
+
+    return count;
+}
+
+static ssize_t store_min_cpus(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret, cpu;
+    ret = sscanf(buf, "%u", &input);
+    if ((ret != 1) || input < 1 || input > msm_mpdec_tuners_ins.max_cpus)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.min_cpus = input;
+    if (num_online_cpus() < input) {
+        for (cpu=1; cpu<CONFIG_NR_CPUS; cpu++) {
+            if (num_online_cpus() >= input)
+                break;
+            if (cpu_online(cpu))
+                continue;
+            mpdec_cpu_up(cpu);
+        }
+        pr_info(MPDEC_TAG"min_cpus set to %u. Affected CPUs were hotplugged!\n", input);
+    }
+
+    return count;
+}
+
+static ssize_t store_enabled(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int cpu, input, enabled;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    switch (state) {
+    case MSM_MPDEC_DISABLED:
+        enabled = 0;
+        break;
+    case MSM_MPDEC_IDLE:
+    case MSM_MPDEC_DOWN:
+    case MSM_MPDEC_UP:
+        enabled = 1;
+        break;
+    default:
+        enabled = 333;
+    }
+
+    if (buf[0] == enabled)
+        return -EINVAL;
+
+    switch (buf[0]) {
+    case '0':
+        state = MSM_MPDEC_DISABLED;
+        pr_info(MPDEC_TAG"nap time... Hot plugging offline CPUs...\n");
+        for (cpu = 1; cpu < CONFIG_NR_CPUS; cpu++)
+            if (!cpu_online(cpu))
+                mpdec_cpu_up(cpu);
+        break;
+    case '1':
+        state = MSM_MPDEC_IDLE;
+        was_paused = true;
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
+                           msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
+        pr_info(MPDEC_TAG"firing up mpdecision...\n");
+        break;
+    default:
+        ret = -EINVAL;
+    }
+    return count;
+}
+
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+static ssize_t store_boost_enabled(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.boost_enabled = input;
+
+    return count;
+}
+
+static ssize_t store_boost_time(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    unsigned int input;
+    int ret;
+    ret = sscanf(buf, "%u", &input);
+    if (ret != 1)
+        return -EINVAL;
+
+    msm_mpdec_tuners_ins.boost_time = input;
+
+    return count;
+}
+
+static ssize_t show_boost_freqs(struct kobject *a, struct attribute *b,
+                   char *buf)
+{
+    ssize_t len = 0;
+    int cpu = 0;
+
+    for_each_present_cpu(cpu) {
+        len += sprintf(buf + len, "%lu\n", per_cpu(msm_mpdec_cpudata, cpu).boost_freq);
+    }
+    return len;
+}
+static ssize_t store_boost_freqs(struct kobject *a, struct attribute *b,
+                   const char *buf, size_t count)
+{
+    int i = 0;
+    unsigned int cpu = 0;
+    long unsigned int hz = 0;
+    const char *chz = NULL;
+
+    for (i=0; i<count; i++) {
+        if (buf[i] == ' ') {
+            sscanf(&buf[(i-1)], "%u", &cpu);
+            chz = &buf[(i+1)];
+        }
+    }
+    sscanf(chz, "%lu", &hz);
+
+    /* if this cpu is currently boosted, unboost */
+    unboost_cpu(cpu);
+
+    /* update boost freq */
+    per_cpu(msm_mpdec_cpudata, cpu).boost_freq = hz;
+
+    return count;
+}
+define_one_global_rw(boost_freqs);
+#endif
+
+define_one_global_rw(startdelay);
+define_one_global_rw(delay);
+define_one_global_rw(pause);
+define_one_global_rw(scroff_single_core);
+define_one_global_rw(idle_freq);
+define_one_global_rw(min_cpus);
+define_one_global_rw(max_cpus);
+define_one_global_rw(enabled);
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+define_one_global_rw(boost_enabled);
+define_one_global_rw(boost_time);
+#endif
+
+static struct attribute *msm_mpdec_attributes[] = {
+    &startdelay.attr,
+    &delay.attr,
+    &pause.attr,
+    &scroff_single_core.attr,
+    &idle_freq.attr,
+    &min_cpus.attr,
+    &max_cpus.attr,
+    &enabled.attr,
+    &twts_threshold_0.attr,
+    &twts_threshold_1.attr,
+    &twts_threshold_2.attr,
+    &twts_threshold_3.attr,
+    &twts_threshold_4.attr,
+    &twts_threshold_5.attr,
+    &twts_threshold_6.attr,
+    &twts_threshold_7.attr,
+    &nwns_threshold_0.attr,
+    &nwns_threshold_1.attr,
+    &nwns_threshold_2.attr,
+    &nwns_threshold_3.attr,
+    &nwns_threshold_4.attr,
+    &nwns_threshold_5.attr,
+    &nwns_threshold_6.attr,
+    &nwns_threshold_7.attr,
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    &boost_freqs.attr,
+    &boost_enabled.attr,
+    &boost_time.attr,
+#endif
+    NULL
 };
 
-static struct notifier_block msm_mpd_hotplug_nb = {
-	.notifier_call = msm_mpd_hotplug_notifier,
+
+static struct attribute_group msm_mpdec_attr_group = {
+    .attrs = msm_mpdec_attributes,
+    .name = "conf",
 };
 
-static int __cpuinit msm_mpd_do_hotplug(void *data)
+/********* STATS START *********/
+
+static ssize_t show_time_cpus_on(struct kobject *a, struct attribute *b,
+                   char *buf)
 {
-	int *event = (int *)data;
-	int cpu;
+    ssize_t len = 0;
+    int cpu = 0;
 
-	while (1) {
-		msm_dcvs_update_algo_params();
-		wait_event(msm_mpd.wait_hpq, *event || kthread_should_stop());
-		if (kthread_should_stop())
-			break;
+    for_each_possible_cpu(cpu) {
+        if (cpu_online(cpu)) {
+            len += sprintf(buf + len, "%i %llu\n", cpu,
+                           (per_cpu(msm_mpdec_cpudata, cpu).on_time_total +
+                            (ktime_to_ms(ktime_get()) -
+                             per_cpu(msm_mpdec_cpudata, cpu).on_time)));
+        } else
+            len += sprintf(buf + len, "%i %llu\n", cpu, per_cpu(msm_mpdec_cpudata, cpu).on_time_total);
+    }
 
-		msm_mpd.hpupdate = HPUPDATE_IN_PROGRESS;
-		/*
-		 * Bring online any offline cores, then offline any online
-		 * cores.  Whenever a core is off/onlined restart the procedure
-		 * in case a new core is desired to be brought online in the
-		 * mean time.
-		 */
-restart:
-		for_each_possible_cpu(cpu) {
-			if ((atomic_read(&msm_mpd.algo_cpu_mask) & (1 << cpu))
-				&& !cpu_online(cpu)) {
-				bring_up_cpu(cpu);
-				if (cpu_online(cpu))
-					goto restart;
-			}
-		}
-
-		if (ktime_to_ns(ktime_sub(ktime_get(), last_down_time)) >
-		    100 * NSEC_PER_MSEC)
-			for_each_possible_cpu(cpu)
-				if (!(atomic_read(&msm_mpd.algo_cpu_mask) &
-				      (1 << cpu)) && cpu_online(cpu)) {
-					bring_down_cpu(cpu);
-					last_down_time = ktime_get();
-					break;
-				}
-		msm_mpd.hpupdate = HPUPDATE_WAITING;
-		msm_dcvs_apply_gpu_floor(0);
-	}
-
-	return 0;
+    return len;
 }
+define_one_global_ro(time_cpus_on);
 
-static int msm_mpd_do_update_scm(void *data)
+static ssize_t show_times_cpus_hotplugged(struct kobject *a, struct attribute *b,
+                   char *buf)
 {
-	struct msm_mpd_scm_data *scm_data = (struct msm_mpd_scm_data *)data;
-	unsigned long flags;
-	enum msm_dcvs_scm_event event;
-	int nr;
+    ssize_t len = 0;
+    int cpu = 0;
 
-	while (1) {
-		wait_event(msm_mpd.wait_q,
-			msm_mpd.data.event == MSM_DCVS_SCM_MPD_QOS_TIMER_EXPIRED
-			|| msm_mpd.data.event == MSM_DCVS_SCM_RUNQ_UPDATE
-			|| kthread_should_stop());
+    for_each_possible_cpu(cpu) {
+        len += sprintf(buf + len, "%i %llu\n", cpu, per_cpu(msm_mpdec_cpudata, cpu).times_cpu_hotplugged);
+    }
 
-		if (kthread_should_stop())
-			break;
-
-		spin_lock_irqsave(&rq_avg_lock, flags);
-		event = scm_data->event;
-		nr = scm_data->nr;
-		scm_data->event = 0;
-		scm_data->nr = 0;
-		spin_unlock_irqrestore(&rq_avg_lock, flags);
-
-		msm_mpd_update_scm(event, nr);
-	}
-	return 0;
+    return len;
 }
+define_one_global_ro(times_cpus_hotplugged);
 
-static int __ref msm_mpd_set_enabled(uint32_t enable)
+static ssize_t show_times_cpus_unplugged(struct kobject *a, struct attribute *b,
+                   char *buf)
 {
-	int ret = 0;
-	int ret0 = 0;
-	int ret1 = 0;
-	int cpu;
-	static uint32_t last_enable;
+    ssize_t len = 0;
+    int cpu = 0;
 
-	enable = (enable > 0) ? 1 : 0;
-	if (last_enable == enable)
-		return ret;
+    for_each_possible_cpu(cpu) {
+        len += sprintf(buf + len, "%i %llu\n", cpu, per_cpu(msm_mpdec_cpudata, cpu).times_cpu_unplugged);
+    }
 
-	if (enable) {
-		ret = msm_mpd_scm_set_algo_params(&msm_mpd.mp_param);
-		if (ret) {
-			pr_err("Error(%d): msm_mpd_scm_set_algo_params failed\n",
-				ret);
-			return ret;
-		}
-	}
-
-	ret = msm_dcvs_scm_event(0, MSM_DCVS_SCM_MPD_ENABLE, enable, 0,
-			&ret0, &ret1);
-	if (ret) {
-		pr_err("Error(%d) %s MP Decision\n",
-				ret, (enable ? "enabling" : "disabling"));
-	} else {
-		last_enable = enable;
-		last_nr = 0;
-	}
-	if (enable) {
-		msm_mpd.next_update = ktime_add_ns(ktime_get(),
-				(msm_mpd.rq_avg_poll_ms * NSEC_PER_MSEC));
-		msm_mpd.task = kthread_run(msm_mpd_do_update_scm,
-					      &msm_mpd.data, "msm_mpdecision");
-		if (IS_ERR(msm_mpd.task))
-			return -EFAULT;
-
-		msm_mpd.hptask = kthread_run(msm_mpd_do_hotplug,
-						&msm_mpd.hpupdate, "msm_hp");
-		if (IS_ERR(msm_mpd.hptask))
-			return -EFAULT;
-
-		for_each_online_cpu(cpu)
-			hrtimer_start(&per_cpu(rq_avg_poll_timer, cpu),
-				      msm_mpd.next_update,
-				      HRTIMER_MODE_ABS_PINNED);
-		cpu_pm_register_notifier(&msm_mpd_idle_nb);
-		register_cpu_notifier(&msm_mpd_hotplug_nb);
-		msm_mpd.enabled = 1;
-	} else {
-		for_each_online_cpu(cpu)
-			hrtimer_cancel(&per_cpu(rq_avg_poll_timer, cpu));
-		kthread_stop(msm_mpd.hptask);
-		kthread_stop(msm_mpd.task);
-		cpu_pm_unregister_notifier(&msm_mpd_idle_nb);
-		unregister_cpu_notifier(&msm_mpd_hotplug_nb);
-		msm_mpd.enabled = 0;
-	}
-
-	return ret;
+    return len;
 }
+define_one_global_ro(times_cpus_unplugged);
 
-static int msm_mpd_set_rq_avg_poll_ms(uint32_t val)
-{
-	/*
-	 * No need to do anything. Just let the timer set its own next poll
-	 * interval when it next fires.
-	 */
-	msm_mpd.rq_avg_poll_ms = val;
-	return 0;
-}
-
-static int msm_mpd_set_iowait_threshold_pct(uint32_t val)
-{
-	/*
-	 * No need to do anything. Just let the timer set its own next poll
-	 * interval when it next fires.
-	 */
-	msm_mpd.iowait_threshold_pct = val;
-	return 0;
-}
-
-static int msm_mpd_set_rq_avg_divide(uint32_t val)
-{
-	/*
-	 * No need to do anything. New value will be used next time
-	 * the decision is made as to whether to update tz.
-	 */
-
-	if (val == 0)
-		return -EINVAL;
-
-	msm_mpd.rq_avg_divide = val;
-	return 0;
-}
-
-#define MPD_ALGO_PARAM(_name, _param) \
-static ssize_t msm_mpd_attr_##_name##_show(struct kobject *kobj, \
-			struct kobj_attribute *attr, char *buf) \
-{ \
-	return snprintf(buf, PAGE_SIZE, "%d\n", _param); \
-} \
-static ssize_t msm_mpd_attr_##_name##_store(struct kobject *kobj, \
-		struct kobj_attribute *attr, const char *buf, size_t count) \
-{ \
-	int ret = 0; \
-	uint32_t val; \
-	uint32_t old_val; \
-	mutex_lock(&msm_mpd.lock); \
-	ret = kstrtouint(buf, 10, &val); \
-	if (ret) { \
-		pr_err("Invalid input %s for %s %d\n", \
-				buf, __stringify(_name), ret);\
-		return 0; \
-	} \
-	old_val = _param; \
-	_param = val; \
-	ret = msm_mpd_scm_set_algo_params(&msm_mpd.mp_param); \
-	if (ret) { \
-		pr_err("Error %d returned when setting algo param %s to %d\n",\
-				ret, __stringify(_name), val); \
-		_param = old_val; \
-	} \
-	mutex_unlock(&msm_mpd.lock); \
-	return count; \
-}
-
-#define MPD_PARAM(_name, _param) \
-static ssize_t msm_mpd_attr_##_name##_show(struct kobject *kobj, \
-			struct kobj_attribute *attr, char *buf) \
-{ \
-	return snprintf(buf, PAGE_SIZE, "%d\n", _param); \
-} \
-static ssize_t msm_mpd_attr_##_name##_store(struct kobject *kobj, \
-		struct kobj_attribute *attr, const char *buf, size_t count) \
-{ \
-	int ret = 0; \
-	uint32_t val; \
-	uint32_t old_val; \
-	mutex_lock(&msm_mpd.lock); \
-	ret = kstrtouint(buf, 10, &val); \
-	if (ret) { \
-		pr_err("Invalid input %s for %s %d\n", \
-				buf, __stringify(_name), ret);\
-		return 0; \
-	} \
-	old_val = _param; \
-	ret = msm_mpd_set_##_name(val); \
-	if (ret) { \
-		pr_err("Error %d returned when setting algo param %s to %d\n",\
-				ret, __stringify(_name), val); \
-		_param = old_val; \
-	} \
-	mutex_unlock(&msm_mpd.lock); \
-	return count; \
-}
-
-#define MPD_RW_ATTRIB(i, _name) \
-	msm_mpd.attrib._name.attr.name = __stringify(_name); \
-	msm_mpd.attrib._name.attr.mode = S_IRUGO | S_IWUSR; \
-	msm_mpd.attrib._name.show = msm_mpd_attr_##_name##_show; \
-	msm_mpd.attrib._name.store = msm_mpd_attr_##_name##_store; \
-	msm_mpd.attrib.attrib_group.attrs[i] = &msm_mpd.attrib._name.attr;
-
-MPD_PARAM(enabled, msm_mpd.enabled);
-MPD_PARAM(rq_avg_poll_ms, msm_mpd.rq_avg_poll_ms);
-MPD_PARAM(iowait_threshold_pct, msm_mpd.iowait_threshold_pct);
-MPD_PARAM(rq_avg_divide, msm_mpd.rq_avg_divide);
-MPD_ALGO_PARAM(em_win_size_min_us, msm_mpd.mp_param.em_win_size_min_us);
-MPD_ALGO_PARAM(em_win_size_max_us, msm_mpd.mp_param.em_win_size_max_us);
-MPD_ALGO_PARAM(em_max_util_pct, msm_mpd.mp_param.em_max_util_pct);
-MPD_ALGO_PARAM(mp_em_rounding_point_min,
-				msm_mpd.mp_param.mp_em_rounding_point_min);
-MPD_ALGO_PARAM(mp_em_rounding_point_max,
-				msm_mpd.mp_param.mp_em_rounding_point_max);
-MPD_ALGO_PARAM(online_util_pct_min, msm_mpd.mp_param.online_util_pct_min);
-MPD_ALGO_PARAM(online_util_pct_max, msm_mpd.mp_param.online_util_pct_max);
-MPD_ALGO_PARAM(slack_time_min_us, msm_mpd.mp_param.slack_time_min_us);
-MPD_ALGO_PARAM(slack_time_max_us, msm_mpd.mp_param.slack_time_max_us);
-MPD_ALGO_PARAM(hp_up_max_ms, hp_latencies.hp_up_max_ms);
-MPD_ALGO_PARAM(hp_up_ms, hp_latencies.hp_up_ms);
-MPD_ALGO_PARAM(hp_up_count, hp_latencies.hp_up_count);
-MPD_ALGO_PARAM(hp_dw_max_ms, hp_latencies.hp_dw_max_ms);
-MPD_ALGO_PARAM(hp_dw_ms, hp_latencies.hp_dw_ms);
-MPD_ALGO_PARAM(hp_dw_count, hp_latencies.hp_dw_count);
-
-static int __devinit msm_mpd_probe(struct platform_device *pdev)
-{
-	struct kobject *module_kobj = NULL;
-	int ret = 0;
-	const int attr_count = 20;
-	struct msm_mpd_algo_param *param = NULL;
-
-	param = pdev->dev.platform_data;
-
-	module_kobj = kset_find_obj(module_kset, KBUILD_MODNAME);
-	if (!module_kobj) {
-		pr_err("Cannot find kobject for module %s\n", KBUILD_MODNAME);
-		ret = -ENOENT;
-		goto done;
-	}
-
-	msm_mpd.attrib.attrib_group.attrs =
-		kzalloc(attr_count * sizeof(struct attribute *), GFP_KERNEL);
-	if (!msm_mpd.attrib.attrib_group.attrs) {
-		ret = -ENOMEM;
-		goto done;
-	}
-
-	MPD_RW_ATTRIB(0, enabled);
-	MPD_RW_ATTRIB(1, rq_avg_poll_ms);
-	MPD_RW_ATTRIB(2, iowait_threshold_pct);
-	MPD_RW_ATTRIB(3, rq_avg_divide);
-	MPD_RW_ATTRIB(4, em_win_size_min_us);
-	MPD_RW_ATTRIB(5, em_win_size_max_us);
-	MPD_RW_ATTRIB(6, em_max_util_pct);
-	MPD_RW_ATTRIB(7, mp_em_rounding_point_min);
-	MPD_RW_ATTRIB(8, mp_em_rounding_point_max);
-	MPD_RW_ATTRIB(9, online_util_pct_min);
-	MPD_RW_ATTRIB(10, online_util_pct_max);
-	MPD_RW_ATTRIB(11, slack_time_min_us);
-	MPD_RW_ATTRIB(12, slack_time_max_us);
-	MPD_RW_ATTRIB(13, hp_up_max_ms);
-	MPD_RW_ATTRIB(14, hp_up_ms);
-	MPD_RW_ATTRIB(15, hp_up_count);
-	MPD_RW_ATTRIB(16, hp_dw_max_ms);
-	MPD_RW_ATTRIB(17, hp_dw_ms);
-	MPD_RW_ATTRIB(18, hp_dw_count);
-
-	msm_mpd.attrib.attrib_group.attrs[19] = NULL;
-	ret = sysfs_create_group(module_kobj, &msm_mpd.attrib.attrib_group);
-	if (ret)
-		pr_err("Unable to create sysfs objects :%d\n", ret);
-
-	msm_mpd.rq_avg_poll_ms = DEFAULT_RQ_AVG_POLL_MS;
-	msm_mpd.rq_avg_divide = DEFAULT_RQ_AVG_DIVIDE;
-
-	memcpy(&msm_mpd.mp_param, param, sizeof(struct msm_mpd_algo_param));
-
-	debugfs_base = debugfs_create_dir("msm_mpdecision", NULL);
-	if (!debugfs_base) {
-		pr_err("Cannot create debugfs base msm_mpdecision\n");
-		ret = -ENOENT;
-		goto done;
-	}
-
-done:
-	if (ret && debugfs_base)
-		debugfs_remove(debugfs_base);
-
-	return ret;
-}
-
-static int __devexit msm_mpd_remove(struct platform_device *pdev)
-{
-	platform_set_drvdata(pdev, NULL);
-
-	return 0;
-}
-
-static struct platform_driver msm_mpd_driver = {
-	.probe	= msm_mpd_probe,
-	.remove	= __devexit_p(msm_mpd_remove),
-	.driver	= {
-		.name	= "msm_mpdecision",
-		.owner	= THIS_MODULE,
-	},
+static struct attribute *msm_mpdec_stats_attributes[] = {
+    &time_cpus_on.attr,
+    &times_cpus_hotplugged.attr,
+    &times_cpus_unplugged.attr,
+    NULL
 };
 
-static int __init msm_mpdecision_init(void)
-{
-	int cpu;
-	if (!msm_mpd_enabled) {
-		pr_info("Not enabled\n");
-		return 0;
+
+static struct attribute_group msm_mpdec_stats_attr_group = {
+    .attrs = msm_mpdec_stats_attributes,
+    .name = "stats",
+};
+/**************************** SYSFS END ****************************/
+
+static int __init msm_mpdec_init(void) {
+    int cpu, rc, err = 0;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    int i;
+    unsigned long int boost_freq = 0;
+#endif
+
+    mpdec_suspended = false;
+    for_each_possible_cpu(cpu) {
+        mutex_init(&(per_cpu(msm_mpdec_cpudata, cpu).hotplug_mutex));
+        per_cpu(msm_mpdec_cpudata, cpu).online = true;
+        per_cpu(msm_mpdec_cpudata, cpu).on_time_total = 0;
+        per_cpu(msm_mpdec_cpudata, cpu).times_cpu_unplugged = 0;
+        per_cpu(msm_mpdec_cpudata, cpu).times_cpu_hotplugged = 0;
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+        per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq = CONFIG_MSM_CPU_FREQ_MIN;
+        switch (cpu) {
+            case 0:
+            case 1:
+            case 2:
+                boost_freq = msm_mpdec_tuners_ins.boost_freq[cpu];
+                break;
+            default:
+                boost_freq = msm_mpdec_tuners_ins.boost_freq[3];
+                break;
+        }
+        per_cpu(msm_mpdec_cpudata, cpu).boost_freq = boost_freq;
+        per_cpu(msm_mpdec_cpudata, cpu).is_boosted = false;
+        per_cpu(msm_mpdec_cpudata, cpu).revib_wq_running = false;
+        per_cpu(msm_mpdec_cpudata, cpu).boost_until = 0;
+        mutex_init(&(per_cpu(msm_mpdec_cpudata, cpu).boost_mutex));
+        mutex_init(&(per_cpu(msm_mpdec_cpudata, cpu).unboost_mutex));
+#endif
+    }
+
+    was_paused = true;
+
+    msm_mpdec_workq = alloc_workqueue("mpdec",
+                                      WQ_UNBOUND | WQ_RESCUER | WQ_FREEZABLE,
+                                      1);
+    if (!msm_mpdec_workq)
+        return -ENOMEM;
+    INIT_DELAYED_WORK(&msm_mpdec_work, msm_mpdec_work_thread);
+
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    mpdec_input_wq = create_workqueue("mpdeciwq");
+    if (!mpdec_input_wq) {
+        printk(KERN_ERR "%s: Failed to create mpdeciwq workqueue\n", __func__);
+        return -EFAULT;
+    }
+    msm_mpdec_revib_workq = create_workqueue("mpdecribwq");
+    if (!msm_mpdec_revib_workq) {
+        printk(KERN_ERR "%s: Failed to create mpdecrevibwq workqueue\n", __func__);
+        return -EFAULT;
+    }
+    for_each_possible_cpu(i) {
+        INIT_WORK(&per_cpu(mpdec_input_work, i), mpdec_input_callback);
+        INIT_DELAYED_WORK(&per_cpu(msm_mpdec_revib_work, i), msm_mpdec_revib_work_thread);
+    }
+    rc = input_register_handler(&mpdec_input_handler);
+#endif
+
+    if (state != MSM_MPDEC_DISABLED)
+        queue_delayed_work(msm_mpdec_workq, &msm_mpdec_work,
+                           msecs_to_jiffies(msm_mpdec_tuners_ins.delay));
+
+    msm_mpdec_kobject = kobject_create_and_add("msm_mpdecision", kernel_kobj);
+    if (msm_mpdec_kobject) {
+        rc = sysfs_create_group(msm_mpdec_kobject,
+                                &msm_mpdec_attr_group);
+        if (rc) {
+            pr_warn(MPDEC_TAG"sysfs: ERROR, could not create sysfs group");
+        }
+        rc = sysfs_create_group(msm_mpdec_kobject,
+                                &msm_mpdec_stats_attr_group);
+        if (rc) {
+            pr_warn(MPDEC_TAG"sysfs: ERROR, could not create sysfs stats group");
+        }
+    } else
+        pr_warn(MPDEC_TAG"sysfs: ERROR, could not create sysfs kobj");
+
+    pr_info(MPDEC_TAG"%s init complete.", __func__);
+
+
+#ifdef CONFIG_FB
+	msm_mpdec_lcd_notif.notifier_call = msm_mpdec_lcd_notifier_callback;
+	if (lcd_register_client(&msm_mpdec_lcd_notif) != 0) {
+		pr_err("%s: Failed to register lcd callback\n", __func__);
+		err = -EINVAL;
+		lcd_unregister_client(&msm_mpdec_lcd_notif);
 	}
+#elif defined CONFIG_HAS_EARLYSUSPEND
+	register_early_suspend(&msm_mpdec_early_suspend_handler);
+#endif
 
-	num_present_hundreds = 100 * num_present_cpus();
-
-	hrtimer_init(&msm_mpd.slack_timer, CLOCK_MONOTONIC,
-			HRTIMER_MODE_REL_PINNED);
-	msm_mpd.slack_timer.function = msm_mpd_slack_timer;
-
-	for_each_possible_cpu(cpu) {
-		hrtimer_init(&per_cpu(rq_avg_poll_timer, cpu),
-			     CLOCK_MONOTONIC, HRTIMER_MODE_ABS_PINNED);
-		per_cpu(rq_avg_poll_timer, cpu).function
-				= msm_mpd_rq_avg_poll_timer;
-	}
-	mutex_init(&msm_mpd.lock);
-	init_waitqueue_head(&msm_mpd.wait_q);
-	init_waitqueue_head(&msm_mpd.wait_hpq);
-	return platform_driver_register(&msm_mpd_driver);
+    return err;
 }
-late_initcall(msm_mpdecision_init);
+late_initcall(msm_mpdec_init);
+
+void msm_mpdec_exit(void) {
+    lcd_unregister_client(&msm_mpdec_lcd_notif);
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+    input_unregister_handler(&mpdec_input_handler);
+    destroy_workqueue(msm_mpdec_revib_workq);
+    destroy_workqueue(mpdec_input_wq);
+#endif
+    destroy_workqueue(msm_mpdec_workq);
+}

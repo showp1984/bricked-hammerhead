@@ -968,7 +968,7 @@ palinfo_read_entry(char *page, char **start, off_t off, int count, int *eof, voi
 	return len;
 }
 
-static void __cpuinit
+static void
 create_palinfo_proc_entries(unsigned int cpu)
 {
 #	define CPUSTR	"cpu%d"
@@ -1027,7 +1027,7 @@ remove_palinfo_proc_entries(unsigned int hcpu)
 	}
 }
 
-static int __cpuinit palinfo_cpu_callback(struct notifier_block *nfb,
+static int palinfo_cpu_callback(struct notifier_block *nfb,
 					unsigned long action, void *hcpu)
 {
 	unsigned int hotcpu = (unsigned long)hcpu;

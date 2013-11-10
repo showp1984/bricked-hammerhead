@@ -299,7 +299,7 @@ static const struct file_operations acpu_table_fops = {
 	.release	= seq_release,
 };
 
-static void __cpuinit add_scalable_dir(int sc_id)
+static void add_scalable_dir(int sc_id)
 {
 	char sc_name[8];
 
@@ -332,13 +332,13 @@ static void __cpuinit add_scalable_dir(int sc_id)
 			sc_dir[sc_id], (void *)sc_id, &l2_vote_fops);
 }
 
-static void __cpuinit remove_scalable_dir(int sc_id)
+static void remove_scalable_dir(int sc_id)
 {
 	debugfs_remove_recursive(sc_dir[sc_id]);
 	sc_dir[sc_id] = NULL;
 }
 
-static int __cpuinit debug_cpu_callback(struct notifier_block *nfb,
+static int debug_cpu_callback(struct notifier_block *nfb,
 			unsigned long action, void *hcpu)
 {
 	int cpu = (int)hcpu;
@@ -359,7 +359,7 @@ static int __cpuinit debug_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata debug_cpu_notifier = {
+static struct notifier_block debug_cpu_notifier = {
 	.notifier_call = debug_cpu_callback,
 };
 

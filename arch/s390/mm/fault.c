@@ -605,7 +605,7 @@ static void pfault_interrupt(struct ext_code ext_code,
 	spin_unlock(&pfault_lock);
 }
 
-static int __cpuinit pfault_cpu_notify(struct notifier_block *self,
+static int pfault_cpu_notify(struct notifier_block *self,
 				       unsigned long action, void *hcpu)
 {
 	struct thread_struct *thread, *next;

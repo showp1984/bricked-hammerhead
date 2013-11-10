@@ -113,12 +113,12 @@ int r8a7779_platform_cpu_kill(unsigned int cpu)
 	return ret ? ret : 1;
 }
 
-void __cpuinit r8a7779_secondary_init(unsigned int cpu)
+void r8a7779_secondary_init(unsigned int cpu)
 {
 	gic_secondary_init(0);
 }
 
-int __cpuinit r8a7779_boot_secondary(unsigned int cpu)
+int r8a7779_boot_secondary(unsigned int cpu)
 {
 	struct r8a7779_pm_ch *ch = NULL;
 	int ret = -EIO;

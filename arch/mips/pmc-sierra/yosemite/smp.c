@@ -8,10 +8,10 @@
 
 #define LAUNCHSTACK_SIZE 256
 
-static __cpuinitdata arch_spinlock_t launch_lock = __ARCH_SPIN_LOCK_UNLOCKED;
+static arch_spinlock_t launch_lock = __ARCH_SPIN_LOCK_UNLOCKED;
 
-static unsigned long secondary_sp __cpuinitdata;
-static unsigned long secondary_gp __cpuinitdata;
+static unsigned long secondary_sp;
+static unsigned long secondary_gp;
 
 static unsigned char launchstack[LAUNCHSTACK_SIZE] __initdata
 	__attribute__((aligned(2 * sizeof(long))));
@@ -113,12 +113,12 @@ static void yos_send_ipi_mask(const struct cpumask *mask, unsigned int action)
  *  After we've done initial boot, this function is called to allow the
  *  board code to clean up state, if needed
  */
-static void __cpuinit yos_init_secondary(void)
+static void yos_init_secondary(void)
 {
 	set_c0_status(ST0_CO | ST0_IE | ST0_IM);
 }
 
-static void __cpuinit yos_smp_finish(void)
+static void yos_smp_finish(void)
 {
 }
 
@@ -134,7 +134,7 @@ static void yos_cpus_done(void)
  * stack so the first thing we do is throw away that stuff and load useful
  * values into the registers ...
  */
-static void __cpuinit yos_boot_secondary(int cpu, struct task_struct *idle)
+static void yos_boot_secondary(int cpu, struct task_struct *idle)
 {
 	unsigned long gp = (unsigned long) task_thread_info(idle);
 	unsigned long sp = __KSTK_TOS(idle);

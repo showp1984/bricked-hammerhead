@@ -71,7 +71,7 @@ static inline unsigned long do_swap(volatile unsigned long *ptr,
 
 static void smp_setup_percpu_timer(void);
 
-void __cpuinit leon_callin(void)
+void leon_callin(void)
 {
 	int cpuid = hard_smpleon_processor_id();
 
@@ -204,7 +204,7 @@ void __init leon_boot_cpus(void)
 
 }
 
-int __cpuinit leon_boot_one_cpu(int i)
+int leon_boot_one_cpu(int i)
 {
 
 	struct task_struct *p;

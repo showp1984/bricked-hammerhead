@@ -1473,7 +1473,7 @@ void __ref xen_hvm_init_shared_info(void)
 }
 
 #ifdef CONFIG_XEN_PVHVM
-static int __cpuinit xen_hvm_cpu_notify(struct notifier_block *self,
+static int xen_hvm_cpu_notify(struct notifier_block *self,
 				    unsigned long action, void *hcpu)
 {
 	int cpu = (long)hcpu;
@@ -1489,7 +1489,7 @@ static int __cpuinit xen_hvm_cpu_notify(struct notifier_block *self,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block xen_hvm_cpu_notifier __cpuinitdata = {
+static struct notifier_block xen_hvm_cpu_notifier = {
 	.notifier_call	= xen_hvm_cpu_notify,
 };
 

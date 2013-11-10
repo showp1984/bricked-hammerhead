@@ -51,7 +51,7 @@ int shmobile_platform_cpu_kill(unsigned int cpu)
 	return 1;
 }
 
-void __cpuinit platform_secondary_init(unsigned int cpu)
+void platform_secondary_init(unsigned int cpu)
 {
 	trace_hardirqs_off();
 
@@ -62,7 +62,7 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 		r8a7779_secondary_init(cpu);
 }
 
-int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
+int boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	if (is_sh73a0())
 		return sh73a0_boot_secondary(cpu);

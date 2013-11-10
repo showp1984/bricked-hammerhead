@@ -566,7 +566,7 @@ static void __init gic_dist_init(struct gic_chip_data *gic)
 	mb();
 }
 
-static void __cpuinit gic_cpu_init(struct gic_chip_data *gic)
+static void gic_cpu_init(struct gic_chip_data *gic)
 {
 	void __iomem *dist_base = gic_data_dist_base(gic);
 	void __iomem *base = gic_data_cpu_base(gic);
@@ -960,7 +960,7 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 	gic_pm_init(gic);
 }
 
-void __cpuinit gic_secondary_init(unsigned int gic_nr)
+void gic_secondary_init(unsigned int gic_nr)
 {
 	BUG_ON(gic_nr >= MAX_GIC_NR);
 

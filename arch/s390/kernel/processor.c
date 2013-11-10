@@ -23,7 +23,7 @@ static DEFINE_PER_CPU(struct cpuid, cpu_id);
 /*
  * cpu_init - initializes state that is per-CPU.
  */
-void __cpuinit cpu_init(void)
+void cpu_init(void)
 {
 	struct cpuid *id = &per_cpu(cpu_id, smp_processor_id());
 

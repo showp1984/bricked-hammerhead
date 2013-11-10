@@ -1573,14 +1573,14 @@ void writeback_set_ratelimit(void)
 		ratelimit_pages = 16;
 }
 
-static int __cpuinit
+static int
 ratelimit_handler(struct notifier_block *self, unsigned long u, void *v)
 {
 	writeback_set_ratelimit();
 	return NOTIFY_DONE;
 }
 
-static struct notifier_block __cpuinitdata ratelimit_nb = {
+static struct notifier_block ratelimit_nb = {
 	.notifier_call	= ratelimit_handler,
 	.next		= NULL,
 };

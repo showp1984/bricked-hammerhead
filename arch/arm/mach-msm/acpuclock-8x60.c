@@ -447,7 +447,7 @@ static struct clkctl_acpu_speed *acpu_freq_tbl;
 static struct clkctl_l2_speed *l2_freq_tbl = l2_freq_tbl_v2;
 static unsigned int l2_freq_tbl_size = ARRAY_SIZE(l2_freq_tbl_v2);
 
-static unsigned long acpuclk_8x60_get_rate(int cpu)
+unsigned long acpuclk_8x60_get_rate(int cpu)
 {
 	return drv_state.current_speed[cpu]->acpuclk_khz;
 }
@@ -952,7 +952,7 @@ static void __init cpufreq_table_init(void) {}
 #endif
 
 #define HOT_UNPLUG_KHZ MAX_AXI
-static int __cpuinit acpuclock_cpu_callback(struct notifier_block *nfb,
+static int acpuclock_cpu_callback(struct notifier_block *nfb,
 					    unsigned long action, void *hcpu)
 {
 	static int prev_khz[NR_CPUS];
@@ -980,7 +980,7 @@ static int __cpuinit acpuclock_cpu_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata acpuclock_cpu_notifier = {
+static struct notifier_block acpuclock_cpu_notifier = {
 	.notifier_call = acpuclock_cpu_callback,
 };
 

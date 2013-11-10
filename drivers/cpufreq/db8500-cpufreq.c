@@ -107,7 +107,7 @@ static unsigned int db8500_cpufreq_getspeed(unsigned int cpu)
 	return freq_table[i].frequency;
 }
 
-static int __cpuinit db8500_cpufreq_init(struct cpufreq_policy *policy)
+static int db8500_cpufreq_init(struct cpufreq_policy *policy)
 {
 	int i, res;
 

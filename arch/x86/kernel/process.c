@@ -661,7 +661,7 @@ static void amd_e400_idle(void)
 		default_idle();
 }
 
-void __cpuinit select_idle_routine(const struct cpuinfo_x86 *c)
+void select_idle_routine(const struct cpuinfo_x86 *c)
 {
 #ifdef CONFIG_SMP
 	if (pm_idle == poll_idle && smp_num_siblings > 1) {
