@@ -125,7 +125,9 @@ static int get_slowest_cpu(void) {
 			continue;
 		rate = get_rate(i);
 		if (slow_rate == 0) {
+			cpu = i;
 			slow_rate = rate;
+			continue;
 		}
 		if ((rate <= slow_rate) && (slow_rate != 0)) {
 			cpu = i;
@@ -146,6 +148,7 @@ static unsigned long get_slowest_cpu_rate(void) {
 		rate = get_rate(i);
 		if ((rate < slow_rate) && (slow_rate != 0)) {
 			slow_rate = rate;
+			continue;
 		}
 		if (slow_rate == 0) {
 			slow_rate = rate;
