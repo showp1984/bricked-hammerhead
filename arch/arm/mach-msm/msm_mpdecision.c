@@ -409,6 +409,10 @@ static void mpdec_input_callback(struct work_struct *unused) {
 				return;
 			}
 			per_cpu(msm_mpdec_cpudata, cpu).norm_min_freq = cpu_policy->min;
+
+			/* check if boost freq is > minfreq */
+			cpufreq_verify_within_limits(cpu_policy, cpu_policy->min, per_cpu(msm_mpdec_cpudata, cpu).boost_freq);
+
 			update_cpu_min_freq(cpu_policy, cpu, per_cpu(msm_mpdec_cpudata, cpu).boost_freq);
 #if DEBUG
 			pr_info(MPDEC_TAG"boosted cpu%i to %lu", cpu, per_cpu(msm_mpdec_cpudata, cpu).boost_freq);
