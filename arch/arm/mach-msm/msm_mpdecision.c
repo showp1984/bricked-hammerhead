@@ -467,7 +467,10 @@ static void mpdec_input_event(struct input_handle *handle, unsigned int type,
 
 static int input_dev_filter(const char *input_dev_name) {
 	if (strstr(input_dev_name, "touch") ||
-		strstr(input_dev_name, "keypad")) {
+		strstr(input_dev_name, "key") ||
+		strstr(input_dev_name, "power") ||
+		strstr(input_dev_name, "pwr") ||
+		strstr(input_dev_name, "lid")) {
 		return 0;
 	} else {
 		return 1;
