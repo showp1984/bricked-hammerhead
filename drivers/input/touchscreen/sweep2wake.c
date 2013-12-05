@@ -64,6 +64,13 @@ MODULE_LICENSE("GPLv2");
 #define S2W_X_B1                400
 #define S2W_X_B2                700
 #define S2W_X_FINAL             250
+#elif defined(CONFIG_MACH_APQ8064_MAKO)
+/* Mako aka Nexus 4 */
+#define S2W_Y_LIMIT             2350
+#define S2W_X_MAX               1540
+#define S2W_X_B1                500
+#define S2W_X_B2                1000
+#define S2W_X_FINAL             300
 #else
 /* defaults */
 #define S2W_Y_LIMIT             2350
