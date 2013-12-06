@@ -264,7 +264,7 @@ static irqreturn_t wcd9xxx_irq_thread(int irq, void *data)
 	}
 
 	/* Apply masking */
-	for (i = 0; i < num_irq_regs; i++)
+	for (i = 0; i < WCD9XXX_NUM_IRQ_REGS; i++)
 		status[i] &= ~wcd9xxx->irq_masks_cur[i];
 
 	memcpy(status1, status, sizeof(status1));
