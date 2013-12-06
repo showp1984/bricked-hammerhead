@@ -51,7 +51,9 @@ DEFINE_PER_CPU(struct msm_mpdec_cpudata_t, msm_mpdec_cpudata);
 EXPORT_PER_CPU_SYMBOL_GPL(msm_mpdec_cpudata);
 
 static bool mpdec_suspended = false;
+#ifndef CONFIG_HAS_EARLYSUSPEND
 static struct notifier_block msm_mpdec_lcd_notif;
+#endif
 static struct delayed_work msm_mpdec_work;
 static struct workqueue_struct *msm_mpdec_workq;
 static DEFINE_MUTEX(mpdec_msm_cpu_lock);
@@ -1212,7 +1214,9 @@ static int __init msm_mpdec_init(void) {
 late_initcall(msm_mpdec_init);
 
 void msm_mpdec_exit(void) {
+#ifndef CONFIG_HAS_EARLYSUSPEND
 	lcd_unregister_client(&msm_mpdec_lcd_notif);
+#endif
 #ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
 	input_unregister_handler(&mpdec_input_handler);
 	destroy_workqueue(msm_mpdec_revib_workq);
