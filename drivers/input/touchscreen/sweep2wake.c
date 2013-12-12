@@ -71,6 +71,14 @@ MODULE_LICENSE("GPLv2");
 #define S2W_X_B1                500
 #define S2W_X_B2                1000
 #define S2W_X_FINAL             300
+#elif defined(CONFIG_MACH_APQ8064_FLO)
+/* Flo/Deb aka Nexus 7 2013 */
+#define S2W_Y_MAX               2240
+#define S2W_X_MAX               1344
+#define S2W_Y_LIMIT             S2W_Y_MAX-110
+#define S2W_X_B1                500
+#define S2W_X_B2                700
+#define S2W_X_FINAL             450
 #else
 /* defaults */
 #define S2W_Y_LIMIT             2350
@@ -150,7 +158,7 @@ static void detect_sweep2wake(int x, int y, bool st)
                 x, y, (single_touch) ? "true" : "false");
 #endif
 	//left->right
-	if ((single_touch) && (scr_suspended == true) && (s2w_switch > 0)) {
+	if ((single_touch) && (scr_suspended == true) && (s2w_switch > 0 && !s2w_s2sonly)) {
 		prevx = 0;
 		nextx = S2W_X_B1;
 		if ((barrier[0] == true) ||
