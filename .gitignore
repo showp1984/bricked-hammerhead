@@ -51,6 +51,12 @@ modules.builtin
 /kcontrol/
 
 #
+# build-stuff
+#
+/out/
+buildme.sh
+
+#
 # Debian directory (make deb-pkg)
 #
 /debian/
