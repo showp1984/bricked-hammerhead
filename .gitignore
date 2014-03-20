@@ -54,6 +54,8 @@ modules.builtin
 # build-stuff
 #
 /out/
+/toolch/
+/prebuilt/
 buildme.sh
 
 #
