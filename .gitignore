@@ -56,7 +56,6 @@ modules.builtin
 /out/
 /toolch/
 /prebuilt/
-buildme.sh
 
 #
 # Debian directory (make deb-pkg)
