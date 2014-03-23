@@ -51,6 +51,13 @@ modules.builtin
 /kcontrol/
 
 #
+# build-stuff
+#
+/out/
+/toolch/
+/prebuilt/
+
+#
 # Debian directory (make deb-pkg)
 #
 /debian/
