@@ -552,6 +552,10 @@ static void msm_mpdec_suspend(struct work_struct * msm_mpdec_suspend_work) {
 #endif
 
 	if (!msm_mpdec_tuners_ins.scroff_single_core) {
+#ifdef CONFIG_MSM_MPDEC_INPUTBOOST_CPUMIN
+		for_each_possible_cpu(cpu)
+			unboost_cpu(cpu);
+#endif
 		pr_info(MPDEC_TAG"Screen -> off\n");
 		return;
 	}
