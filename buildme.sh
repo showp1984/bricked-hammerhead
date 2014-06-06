@@ -1,7 +1,7 @@
 #!/bin/bash
 #switches
 USEAROMA=0;
-USEPREBUILT=1;
+USEPREBUILT=0;
 USECHKS=1;
 USEFTP=0;
 #sourcedir
