@@ -10,7 +10,7 @@ obj-$(CONFIG_THERMAL_PM8XXX)	+= pm8xxx-tm.o
 ifdef CONFIG_BRICKED_THERMAL
 	obj-y	+= msm_thermal.o
 else
-	obj-$(CONFIG_THERMAL_MONITOR)	+= msm_thermal_qcom.o
+	obj-$(CONFIG_THERMAL_MONITOR)	+= msm_thermal_qcom.o msm_thermal-dev.o
 endif
 obj-$(CONFIG_SPEAR_THERMAL)		+= spear_thermal.o
 obj-$(CONFIG_THERMAL_TSENS8974)	+= msm8974-tsens.o

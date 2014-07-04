@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -393,26 +393,29 @@ void msm_isp_sof_notify(struct vfe_device *vfe_dev,
 	enum msm_vfe_input_src frame_src, struct msm_isp_timestamp *ts) {
 	struct msm_isp_event_data sof_event;
 
-	if (vfe_dev->skip_isp_send_event)
+	vfe_dev->skip_ping_pong_cfg = 0;
+	if (vfe_dev->skip_isp_send_event) {
+		vfe_dev->skip_ping_pong_cfg = 1;
 		return;
+	}
 
 	switch (frame_src) {
 	case VFE_PIX_0:
-		ISP_DBG("%s: PIX0 frame id: %lu\n", __func__,
-			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
 		vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id++;
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id == 0)
 			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id = 1;
+		ISP_DBG("%s: PIX0 frame id: %lu\n", __func__,
+			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
 		break;
 	case VFE_RAW_0:
 	case VFE_RAW_1:
 	case VFE_RAW_2:
-		ISP_DBG("%s: RDI%d frame id: %lu\n",
-			__func__, frame_src - VFE_RAW_0,
-			vfe_dev->axi_data.src_info[frame_src].frame_id);
 		vfe_dev->axi_data.src_info[frame_src].frame_id++;
 		if (vfe_dev->axi_data.src_info[frame_src].frame_id == 0)
 			vfe_dev->axi_data.src_info[frame_src].frame_id = 1;
+		ISP_DBG("%s: RDI%d frame id: %lu\n",
+			__func__, frame_src - VFE_RAW_0,
+			vfe_dev->axi_data.src_info[frame_src].frame_id);
 		break;
 	default:
 		pr_err("%s: invalid frame src %d received\n",
@@ -428,15 +431,9 @@ void msm_isp_sof_notify(struct vfe_device *vfe_dev,
 
 void msm_isp_eof_notify(struct vfe_device *vfe_dev)
 {
-	struct msm_vfe_axi_stream *stream_info;
-	uint32_t i;
 	unsigned long flags;
 
-	vfe_dev->skip_ping_pong_cfg = 0;
-	if (vfe_dev->skip_isp_send_event) {
-		vfe_dev->skip_isp_send_event = 0;
-		vfe_dev->skip_ping_pong_cfg = 1;
-	}
+	vfe_dev->skip_isp_send_event = 0;
 
 	spin_lock_irqsave(&vfe_dev->cfg_flag_lock, flags);
 	if (vfe_dev->config_done_flag != 1 &&
@@ -446,16 +443,8 @@ void msm_isp_eof_notify(struct vfe_device *vfe_dev)
 		ISP_DBG("%s: Skip frame because ISP cfg is not done! \n",
 				__func__);
 	}
-        vfe_dev->config_done_flag = 0;
+	vfe_dev->config_done_flag = 0;
 	spin_unlock_irqrestore(&vfe_dev->cfg_flag_lock, flags);
-
-	for (i = 0; i < MAX_NUM_STREAM; i++) {
-		stream_info = &vfe_dev->axi_data.stream_info[i];
-		if (stream_info->request_frm_num) {
-			stream_info->request_frm_num--;
-			stream_info->request_frame = 1;
-		}
-	}
 }
 
 void msm_isp_calculate_framedrop(
@@ -665,7 +654,9 @@ void msm_isp_axi_stream_update(struct vfe_device *vfe_dev)
 		}
 	}
 
-	if (vfe_dev->axi_data.pipeline_update == DISABLE_CAMIF) {
+	if (vfe_dev->axi_data.pipeline_update == DISABLE_CAMIF ||
+		(vfe_dev->axi_data.pipeline_update ==
+		DISABLE_CAMIF_IMMEDIATELY)) {
 		vfe_dev->hw_info->vfe_ops.stats_ops.
 			enable_module(vfe_dev, 0xFF, 0);
 		vfe_dev->axi_data.pipeline_update = NO_UPDATE;
@@ -826,26 +817,39 @@ static enum msm_isp_camif_update_state
 	int i;
 	struct msm_vfe_axi_stream *stream_info;
 	struct msm_vfe_axi_shared_data *axi_data = &vfe_dev->axi_data;
-	uint8_t pix_stream_cnt = 0, cur_pix_stream_cnt;
-	cur_pix_stream_cnt =
-		axi_data->src_info[VFE_PIX_0].pix_stream_count +
-		axi_data->src_info[VFE_PIX_0].raw_stream_count;
+	uint8_t pix_stream_cnt = 0, raw_stream_cnt = 0;
+	uint8_t cur_pix_stream_cnt, cur_raw_stream_cnt;
+	uint8_t stream_cnt, cur_stream_cnt;
+
+	cur_pix_stream_cnt = axi_data->src_info[VFE_PIX_0].pix_stream_count;
+	cur_raw_stream_cnt = axi_data->src_info[VFE_PIX_0].raw_stream_count;
+	cur_stream_cnt = cur_pix_stream_cnt + cur_raw_stream_cnt;
+
 	for (i = 0; i < stream_cfg_cmd->num_streams; i++) {
 		stream_info =
 			&axi_data->stream_info[
 			HANDLE_TO_IDX(stream_cfg_cmd->stream_handle[i])];
-		if (stream_info->stream_src  < RDI_INTF_0)
+		if (stream_info->stream_src < CAMIF_RAW)
 			pix_stream_cnt++;
+		else if (stream_info->stream_src < RDI_INTF_0)
+			raw_stream_cnt++;
 	}
+	stream_cnt = pix_stream_cnt + raw_stream_cnt;
 
-	if (pix_stream_cnt) {
-		if (cur_pix_stream_cnt == 0 && pix_stream_cnt &&
+	if (stream_cnt) {
+		if (((cur_stream_cnt == 0) ||
+			(raw_stream_cnt && cur_raw_stream_cnt == 0)) &&
 			stream_cfg_cmd->cmd == START_STREAM)
 			return ENABLE_CAMIF;
-		else if (cur_pix_stream_cnt &&
-			(cur_pix_stream_cnt - pix_stream_cnt) == 0 &&
+		else if (cur_stream_cnt &&
+			(cur_stream_cnt - stream_cnt) == 0 &&
 			stream_cfg_cmd->cmd == STOP_STREAM)
 			return DISABLE_CAMIF;
+		else if ((cur_pix_stream_cnt || cur_raw_stream_cnt) &&
+			(cur_pix_stream_cnt - pix_stream_cnt) == 0 &&
+                        (cur_raw_stream_cnt - raw_stream_cnt) == 0 &&
+			stream_cfg_cmd->cmd == STOP_IMMEDIATELY)
+			return DISABLE_CAMIF_IMMEDIATELY;
 	}
 	return NO_UPDATE;
 }
@@ -1119,6 +1123,9 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 	if (camif_update == DISABLE_CAMIF)
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, DISABLE_CAMIF);
+	else if (camif_update == DISABLE_CAMIF_IMMEDIATELY)
+		vfe_dev->hw_info->vfe_ops.core_ops.
+			update_camif_state(vfe_dev, DISABLE_CAMIF_IMMEDIATELY);
 	msm_isp_update_camif_output_count(vfe_dev, stream_cfg_cmd);
 
 	for (i = 0; i < stream_cfg_cmd->num_streams; i++) {
@@ -1195,7 +1202,7 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 		break;
 	}
 	case UPDATE_STREAM_REQUEST_FRAMES:
-		stream_info->request_frm_num += update_cmd->request_frm_num;
+		stream_info->request_frame = 1;
 		break;
 	default:
 		pr_err("%s: Invalid update type\n", __func__);
