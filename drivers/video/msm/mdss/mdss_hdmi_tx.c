@@ -395,7 +395,7 @@ void *hdmi_get_featuredata_from_sysfs_dev(struct device *device,
 {
 	struct hdmi_tx_ctrl *hdmi_ctrl = NULL;
 
-	if (!device || feature_type > HDMI_TX_FEAT_MAX) {
+	if (!device || feature_type >= HDMI_TX_FEAT_MAX) {
 		DEV_ERR("%s: invalid input\n", __func__);
 		return NULL;
 	}
@@ -2381,8 +2381,13 @@ static void hdmi_tx_power_off_work(struct work_struct *work)
 		hdmi_hdcp_off(hdmi_ctrl->feature_data[HDMI_TX_FEAT_HDCP]);
 	}
 
-	if (!hdmi_tx_is_dvi_mode(hdmi_ctrl))
+	if (!hdmi_tx_is_dvi_mode(hdmi_ctrl)) {
+		if (hdmi_ctrl->panel_power_on && hdmi_ctrl->hpd_state) {
+			hdmi_tx_set_audio_switch_node(hdmi_ctrl, 0, false);
+			hdmi_tx_wait_for_audio_engine(hdmi_ctrl);
+		}
 		hdmi_tx_audio_off(hdmi_ctrl);
+	}
 
 	hdmi_tx_powerdown_phy(hdmi_ctrl);
 

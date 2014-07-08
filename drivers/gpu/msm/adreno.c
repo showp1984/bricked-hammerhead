@@ -580,8 +580,6 @@ static void adreno_cleanup_pt(struct kgsl_device *device,
 
 	kgsl_mmu_unmap(pagetable, &rb->buffer_desc);
 
-	kgsl_mmu_unmap(pagetable, &rb->memptrs_desc);
-
 	kgsl_mmu_unmap(pagetable, &device->memstore);
 
 	kgsl_mmu_unmap(pagetable, &adreno_dev->pwron_fixup);
@@ -598,8 +596,11 @@ static int adreno_setup_pt(struct kgsl_device *device,
 
 	result = kgsl_mmu_map_global(pagetable, &rb->buffer_desc);
 
-	if (!result)
-		result = kgsl_mmu_map_global(pagetable, &rb->memptrs_desc);
+	/*
+	 * ALERT: Order of these mapping is important to
+	 * Keep the most used entries like memstore
+	 * and mmu setstate memory by TLB prefetcher.
+	 */
 
 	if (!result)
 		result = kgsl_mmu_map_global(pagetable, &device->memstore);
@@ -885,11 +886,10 @@ static int adreno_iommu_setstate(struct kgsl_device *device,
 	num_iommu_units = kgsl_mmu_get_num_iommu_units(&device->mmu);
 
 	context = kgsl_context_get(device, context_id);
-	if (context == NULL) {
-		kgsl_mmu_device_setstate(&device->mmu, KGSL_CONTEXT_INVALID);
-		return -EINVAL;
+	if (!context) {
+		kgsl_mmu_device_setstate(&device->mmu, flags);
+		return 0;
 	}
-
 	adreno_ctx = ADRENO_CONTEXT(context);
 
 	result = kgsl_mmu_enable_clk(&device->mmu, KGSL_IOMMU_CONTEXT_USER);
@@ -1690,6 +1690,9 @@ static int adreno_start(struct kgsl_device *device)
 	unsigned int state = device->state;
 	unsigned int regulator_left_on = 0;
 
+	if (test_bit(ADRENO_DEVICE_STARTED, &adreno_dev->priv))
+		return 0;
+
 	kgsl_cffdump_open(device);
 
 	kgsl_pwrctrl_set_state(device, KGSL_STATE_INIT);
@@ -1758,6 +1761,8 @@ static int adreno_start(struct kgsl_device *device)
 
 	device->reset_counter++;
 
+	set_bit(ADRENO_DEVICE_STARTED, &adreno_dev->priv);
+
 	return 0;
 
 error_rb_stop:
@@ -1800,6 +1805,8 @@ static int adreno_stop(struct kgsl_device *device)
 	kgsl_pwrctrl_disable(device);
 
 	kgsl_cffdump_close(device);
+
+	clear_bit(ADRENO_DEVICE_STARTED, &adreno_dev->priv);
 
 	return 0;
 }
@@ -2514,9 +2521,6 @@ struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 	if (kgsl_gpuaddr_in_memdesc(&ringbuffer->buffer_desc, gpuaddr, size))
 		return &ringbuffer->buffer_desc;
 
-	if (kgsl_gpuaddr_in_memdesc(&ringbuffer->memptrs_desc, gpuaddr, size))
-		return &ringbuffer->memptrs_desc;
-
 	if (kgsl_gpuaddr_in_memdesc(&device->memstore, gpuaddr, size))
 		return &device->memstore;
 
@@ -2662,7 +2666,7 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 		return -EINVAL;
 
 	ret = adreno_drawctxt_wait(ADRENO_DEVICE(device), context,
-		timestamp, msecs_to_jiffies(msecs));
+		timestamp, msecs);
 
 	/* If the context got invalidated then return a specific error */
 	drawctxt = ADRENO_CONTEXT(context);

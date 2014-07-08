@@ -69,6 +69,16 @@
 #include <dhd_wlfc.h>
 #endif
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT)
+#include <wl_cfgvendor.h>
+#endif /* KERNEL > 3.13 || WL_VENDOR_EXT_SUPPORT */
+
+#ifdef WL11U
+#if !defined(WL_ENABLE_P2P_IF) && !defined(WL_CFG80211_P2P_DEV_IF)
+#error You should enable 'WL_ENABLE_P2P_IF' or 'WL_CFG80211_P2P_DEV_IF' \
+	according to Kernel version and is supported only in Android-JB
+#endif /* !WL_ENABLE_P2P_IF && !WL_CFG80211_P2P_DEV_IF */
+#endif /* WL11U */
 
 
 #define IW_WSEC_ENABLED(wsec)   ((wsec) & (WEP_ENABLED | TKIP_ENABLED | AES_ENABLED))
@@ -381,6 +391,10 @@ wl_notify_sched_scan_results(struct wl_priv *wl, struct net_device *ndev,
 static s32 wl_notify_pfn_status(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 	const wl_event_msg_t *e, void *data);
 #endif /* PNO_SUPPORT */
+#ifdef GSCAN_SUPPORT
+static s32 wl_notify_gscan_event(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
+	const wl_event_msg_t *e, void *data);
+#endif
 static s32 wl_notifier_change_state(struct wl_priv *wl, struct net_info *_net_info,
 	enum wl_status state, bool set);
 
@@ -439,6 +453,13 @@ static s32 wl_mrg_ie(struct wl_priv *wl, u8 *ie_stream, u16 ie_size);
 static s32 wl_cp_ie(struct wl_priv *wl, u8 *dst, u16 dst_size);
 static u32 wl_get_ielen(struct wl_priv *wl);
 
+#ifdef WL11U
+bcm_tlv_t *
+wl_cfg80211_find_interworking_ie(u8 *parse, u32 len);
+static s32
+wl_cfg80211_add_iw_ie(struct wl_priv *wl, struct net_device *ndev, s32 bssidx, s32 pktflag,
+            uint8 ie_id, uint8 *data, uint8 data_len);
+#endif /* WL11U */
 
 static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *dev, void *data);
 static void wl_free_wdev(struct wl_priv *wl);
@@ -2152,6 +2173,9 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 	bool iscan_req;
 	bool escan_req = false;
 	bool p2p_ssid;
+#ifdef WL11U
+	bcm_tlv_t *interworking_ie;
+#endif
 	s32 err = 0;
 	s32 bssidx = -1;
 	s32 i;
@@ -2260,6 +2284,29 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 						err = BCME_ERROR;
 						goto scan_out;
 					}
+#ifdef WL11U
+					if ((interworking_ie = wl_cfg80211_find_interworking_ie(
+						(u8 *)request->ie, request->ie_len)) != NULL) {
+						err = wl_cfg80211_add_iw_ie(wl, ndev, bssidx,
+						       VNDR_IE_CUSTOM_FLAG, interworking_ie->id,
+						       interworking_ie->data, interworking_ie->len);
+
+						if (unlikely(err)) {
+							goto scan_out;
+						}
+					} else if (wl->iw_ie_len != 0) {
+					/* we have to clear IW IE and disable gratuitous APR */
+						wl_cfg80211_add_iw_ie(wl, ndev, bssidx,
+							VNDR_IE_CUSTOM_FLAG,
+							DOT11_MNG_INTERWORKING_ID,
+							0, 0);
+
+						wldev_iovar_setint_bsscfg(ndev, "grat_arp", 0,
+							bssidx);
+						wl->wl11u = FALSE;
+						/* we don't care about error */
+					}
+#endif /* WL11U */
 					err = wl_cfgp2p_set_management_ie(wl, ndev, bssidx,
 						VNDR_IE_PRBREQ_FLAG, (u8 *)request->ie,
 						request->ie_len);
@@ -4699,12 +4746,50 @@ wl_cfg80211_config_p2p_pub_af_tx(struct wiphy *wiphy,
 	return err;
 }
 
+#ifdef WL11U
+static bool
+wl_cfg80211_check_DFS_channel(struct wl_priv *wl, wl_af_params_t *af_params,
+	void *frame, u16 frame_len)
+{
+	struct wl_scan_results *bss_list;
+	struct wl_bss_info *bi = NULL;
+	bool result = false;
+	s32 i;
+
+	/* If DFS channel is 52~148, check to block it or not */
+	if (af_params &&
+		(af_params->channel >= 52 && af_params->channel <= 148)) {
+		if (!wl_cfgp2p_is_p2p_action(frame, frame_len)) {
+			bss_list = wl->bss_list;
+			bi = next_bss(bss_list, bi);
+			for_each_bss(bss_list, bi, i) {
+				if (CHSPEC_IS5G(bi->chanspec) &&
+					((bi->ctl_ch ? bi->ctl_ch : CHSPEC_CHANNEL(bi->chanspec))
+					== af_params->channel)) {
+					result = true;	/* do not block the action frame */
+					break;
+				}
+			}
+		}
+	}
+	else {
+		result = true;
+	}
+
+	WL_DBG(("result=%s", result?"true":"false"));
+	return result;
+}
+#endif /* WL11U */
+
 
 static bool
 wl_cfg80211_send_action_frame(struct wiphy *wiphy, struct net_device *dev,
 	bcm_struct_cfgdev *cfgdev, wl_af_params_t *af_params,
 	wl_action_frame_t *action_frame, u16 action_frame_len, s32 bssidx)
 {
+#ifdef WL11U
+	struct net_device *ndev = NULL;
+#endif /* WL11U */
 	struct wl_priv *wl = wiphy_priv(wiphy);
 	bool ack = false;
 	u8 category, action;
@@ -4715,6 +4800,13 @@ wl_cfg80211_send_action_frame(struct wiphy *wiphy, struct net_device *dev,
 #endif
 	dhd_pub_t *dhd = (dhd_pub_t *)(wl->pub);
 
+#ifdef WL11U
+#if defined(WL_CFG80211_P2P_DEV_IF)
+	ndev = dev;
+#else
+	ndev = ndev_to_cfgdev(cfgdev);
+#endif /* WL_CFG80211_P2P_DEV_IF */
+#endif /* WL11U */
 
 	category = action_frame->data[DOT11_ACTION_CAT_OFF];
 	action = action_frame->data[DOT11_ACTION_ACT_OFF];
@@ -4786,6 +4878,10 @@ wl_cfg80211_send_action_frame(struct wiphy *wiphy, struct net_device *dev,
 	} else {
 		config_af_params.search_channel = false;
 	}
+#ifdef WL11U
+	if (ndev == wl_to_prmry_ndev(wl))
+		config_af_params.search_channel = false;
+#endif /* WL11U */
 
 #ifdef VSDB
 	/* if connecting on primary iface, sleep for a while before sending af tx for VSDB */
@@ -4798,6 +4894,12 @@ wl_cfg80211_send_action_frame(struct wiphy *wiphy, struct net_device *dev,
 	if (wl_get_drv_status_all(wl, SCANNING)) {
 		wl_notify_escan_complete(wl, wl->escan_info.ndev, true, true);
 	}
+#ifdef WL11U
+	/* handling DFS channel exceptions */
+	if (!wl_cfg80211_check_DFS_channel(wl, af_params, action_frame->data, action_frame->len)) {
+		return false;	/* the action frame was blocked */
+	}
+#endif /* WL11U */
 
 	/* set status and destination address before sending af */
 	if (wl->next_af_subtype != P2P_PAF_SUBTYPE_INVALID) {
@@ -6678,6 +6780,16 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 	WL_DBG(("Registering custom regulatory)\n"));
 	wdev->wiphy->flags |= WIPHY_FLAG_CUSTOM_REGULATORY;
 	wiphy_apply_custom_regulatory(wdev->wiphy, &brcm_regdom);
+
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT)
+	WL_ERR(("Registering Vendor80211)\n"));
+	err = wl_cfgvendor_attach(wdev->wiphy);
+	if (unlikely(err < 0)) {
+		WL_ERR(("Couldn not attach vendor commands (%d)\n", err));
+	}
+#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT) */
+
+
 	/* Now we can register wiphy with cfg80211 module */
 	err = wiphy_register(wdev->wiphy);
 	if (unlikely(err < 0)) {
@@ -6702,6 +6814,11 @@ static void wl_free_wdev(struct wl_priv *wl)
 		return;
 	}
 	wiphy = wdev->wiphy;
+
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT)
+    wl_cfgvendor_detach(wdev->wiphy);
+#endif /* if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)) || defined(WL_VENDOR_EXT_SUPPORT) */
+
 	wiphy_unregister(wdev->wiphy);
 	wdev->wiphy->dev.parent = NULL;
 
@@ -7681,6 +7798,60 @@ wl_notify_pfn_status(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 }
 #endif /* PNO_SUPPORT */
 
+#ifdef GSCAN_SUPPORT
+static s32
+wl_notify_gscan_event(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
+	const wl_event_msg_t *e, void *data)
+{
+	s32 err = 0;
+	u32 event = be32_to_cpu(e->event_type);
+	void *ptr;
+	int send_evt_bytes = 0;
+	int batch_event_result_dummy = 0;
+	struct net_device *ndev = cfgdev_to_wlc_ndev(cfgdev, wl);
+	struct wiphy *wiphy = wl_to_wiphy(wl);
+
+	switch (event) {
+		case WLC_E_PFN_SWC:
+			ptr = dhd_dev_swc_scan_event(ndev, data, &send_evt_bytes);
+			if (send_evt_bytes) {
+				wl_cfgvendor_send_async_event(wiphy, ndev,
+				    GOOGLE_GSCAN_SIGNIFICANT_EVENT, ptr, send_evt_bytes);
+				kfree(ptr);
+			}
+			break;
+		case WLC_E_PFN_BEST_BATCHING:
+			err = dhd_dev_retrieve_batch_scan(ndev);
+			if (err < 0) {
+				WL_ERR(("Batch retrieval already in progress %d\n", err));
+			} else {
+				wl_cfgvendor_send_async_event(wiphy, ndev,
+				    GOOGLE_GSCAN_BATCH_SCAN_EVENT,
+				     &batch_event_result_dummy, sizeof(int));
+			}
+			break;
+		case WLC_E_PFN_BSSID_NET_FOUND:
+			ptr = dhd_dev_hotlist_scan_found_event(ndev, data, &send_evt_bytes);
+			if (ptr) {
+				wl_cfgvendor_send_hotlist_found_event(wiphy, ndev,
+				 ptr, send_evt_bytes);
+				dhd_dev_gscan_hotlist_cache_cleanup(ndev);
+			}
+			break;
+		case WLC_E_PFN_GSCAN_FULL_RESULT:
+			ptr = dhd_dev_process_full_gscan_result(ndev, data, &send_evt_bytes);
+			if (ptr) {
+				wl_cfgvendor_send_async_event(wiphy, ndev,
+				    GOOGLE_SCAN_FULL_RESULTS_EVENT, ptr, send_evt_bytes);
+				kfree(ptr);
+			}
+			break;
+
+	}
+	return err;
+}
+#endif /* GSCAN_SUPPORT */
+
 static s32
 wl_notify_scan_status(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 	const wl_event_msg_t *e, void *data)
@@ -8168,6 +8339,12 @@ static void wl_init_event_handler(struct wl_priv *wl)
 #ifdef PNO_SUPPORT
 	wl->evt_handler[WLC_E_PFN_NET_FOUND] = wl_notify_pfn_status;
 #endif /* PNO_SUPPORT */
+#ifdef GSCAN_SUPPORT
+	wl->evt_handler[WLC_E_PFN_BEST_BATCHING] = wl_notify_gscan_event;
+	wl->evt_handler[WLC_E_PFN_GSCAN_FULL_RESULT] = wl_notify_gscan_event;
+	wl->evt_handler[WLC_E_PFN_SWC] = wl_notify_gscan_event;
+	wl->evt_handler[WLC_E_PFN_BSSID_NET_FOUND] = wl_notify_gscan_event;
+#endif /* GSCAN_SUPPORT */
 #ifdef WLTDLS
 	wl->evt_handler[WLC_E_TDLS_PEER_EVENT] = wl_tdls_event_handler;
 #endif /* WLTDLS */
@@ -10968,8 +11145,101 @@ wl_cfg80211_mgmt_tx_cancel_wait(struct wiphy *wiphy,
 }
 #endif /* WL_SUPPORT_BACKPORTED_PATCHES || KERNEL >= 3.2.0 */
 
+#ifdef WL11U
+bcm_tlv_t *
+wl_cfg80211_find_interworking_ie(u8 *parse, u32 len)
+{
+	bcm_tlv_t *ie;
+
+	while ((ie = bcm_parse_tlvs(parse, (u32)len, DOT11_MNG_INTERWORKING_ID))) {
+			return (bcm_tlv_t *)ie;
+	}
+	return NULL;
+}
 
 
+static s32
+wl_cfg80211_add_iw_ie(struct wl_priv *wl, struct net_device *ndev, s32 bssidx, s32 pktflag,
+            uint8 ie_id, uint8 *data, uint8 data_len)
+{
+	s32 err = BCME_OK;
+	s32 buf_len;
+	s32 iecount;
+	ie_setbuf_t *ie_setbuf;
+
+	if (ie_id != DOT11_MNG_INTERWORKING_ID)
+		return BCME_UNSUPPORTED;
+
+	/* Validate the pktflag parameter */
+	if ((pktflag & ~(VNDR_IE_BEACON_FLAG | VNDR_IE_PRBRSP_FLAG |
+	            VNDR_IE_ASSOCRSP_FLAG | VNDR_IE_AUTHRSP_FLAG |
+	            VNDR_IE_PRBREQ_FLAG | VNDR_IE_ASSOCREQ_FLAG|
+	            VNDR_IE_CUSTOM_FLAG))) {
+		WL_ERR(("cfg80211 Add IE: Invalid packet flag 0x%x\n", pktflag));
+		return -1;
+	}
+
+	/* use VNDR_IE_CUSTOM_FLAG flags for none vendor IE . currently fixed value */
+	pktflag = htod32(pktflag);
+
+	buf_len = sizeof(ie_setbuf_t) + data_len - 1;
+	ie_setbuf = (ie_setbuf_t *) kzalloc(buf_len, GFP_KERNEL);
+
+	if (!ie_setbuf) {
+		WL_ERR(("Error allocating buffer for IE\n"));
+		return -ENOMEM;
+	}
+
+	if (wl->iw_ie_len == data_len && !memcmp(wl->iw_ie, data, data_len)) {
+		WL_ERR(("Previous IW IE is equals to current IE\n"));
+		err = BCME_OK;
+		goto exit;
+	}
+
+	strncpy(ie_setbuf->cmd, "add", VNDR_IE_CMD_LEN - 1);
+	ie_setbuf->cmd[VNDR_IE_CMD_LEN - 1] = '\0';
+
+	/* Buffer contains only 1 IE */
+	iecount = htod32(1);
+	memcpy((void *)&ie_setbuf->ie_buffer.iecount, &iecount, sizeof(int));
+	memcpy((void *)&ie_setbuf->ie_buffer.ie_list[0].pktflag, &pktflag, sizeof(uint32));
+
+	/* Now, add the IE to the buffer */
+	ie_setbuf->ie_buffer.ie_list[0].ie_data.id = ie_id;
+
+	/* if already set with previous values, delete it first */
+	if (wl->iw_ie_len != 0) {
+		WL_DBG(("Different IW_IE was already set. clear first\n"));
+
+		ie_setbuf->ie_buffer.ie_list[0].ie_data.len = 0;
+
+		err = wldev_iovar_setbuf_bsscfg(ndev, "ie", ie_setbuf, buf_len,
+			wl->ioctl_buf, WLC_IOCTL_MAXLEN, bssidx, &wl->ioctl_buf_sync);
+
+		if (err != BCME_OK)
+			goto exit;
+	}
+
+	ie_setbuf->ie_buffer.ie_list[0].ie_data.len = data_len;
+	memcpy((uchar *)&ie_setbuf->ie_buffer.ie_list[0].ie_data.data[0], data, data_len);
+
+	err = wldev_iovar_setbuf_bsscfg(ndev, "ie", ie_setbuf, buf_len,
+		wl->ioctl_buf, WLC_IOCTL_MAXLEN, bssidx, &wl->ioctl_buf_sync);
+
+	if (err == BCME_OK) {
+		memcpy(wl->iw_ie, data, data_len);
+		wl->iw_ie_len = data_len;
+		wl->wl11u = TRUE;
+
+		err = wldev_iovar_setint_bsscfg(ndev, "grat_arp", 1, bssidx);
+	}
+
+exit:
+	if (ie_setbuf)
+		kfree(ie_setbuf);
+	return err;
+}
+#endif /* WL11U */
 
 static void wl_cfg80211_work_handler(struct work_struct * work)
 {

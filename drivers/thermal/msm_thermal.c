@@ -631,4 +631,3 @@ int __init msm_thermal_init(struct msm_thermal_data *pdata)
 
     return ret;
 }
-
